@@ -41,8 +41,8 @@ export function Growth() {
               <p className="text-lg font-bold text-foreground">{user.totalCompletions}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">연속 출석</p>
-              <p className="text-lg font-bold text-foreground">{user.streakDays}일</p>
+              <p className="text-xs text-muted-foreground mb-1">함께한 날</p>
+              <p className="text-lg font-bold text-foreground">{user.dayCount}일</p>
             </div>
           </div>
 

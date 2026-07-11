@@ -25,12 +25,13 @@ const INTERESTS = [
 
 export function DailyCheckin() {
   const { updateUser, setView, user } = useAppStore();
+  const [opened, setOpened] = useState(false);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<DailyAnswers>>({});
 
   const handleNext = (val: string) => {
     let newAnswers = { ...answers };
-    
+
     if (step === 0) newAnswers.condition = val;
     if (step === 1) newAnswers.area = val as Area | 'unknown';
     if (step === 2) newAnswers.interest = val;
@@ -57,6 +58,58 @@ export function DailyCheckin() {
     ? AREAS.map(a => ({ label: a.label, value: a.value }))
     : INTERESTS.map(i => ({ label: i, value: i }));
 
+  if (!opened) {
+    return (
+      <div className="flex flex-col h-full bg-background p-6">
+        <div className="flex-1 flex flex-col items-center justify-center max-w-sm mx-auto w-full space-y-10 text-center">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Day {user.dayCount}</p>
+            <h2 className="text-xl font-medium text-foreground leading-relaxed">
+              {user.nickname || '조각이 친구'}님,<br />오늘의 편지가 도착했어요.
+            </h2>
+          </div>
+
+          <motion.button
+            onClick={() => setOpened(true)}
+            initial={{ y: -160, rotate: -6, opacity: 0 }}
+            animate={{ y: 0, rotate: 0, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 120, damping: 14 }}
+            whileHover={{ scale: 1.03, rotate: 1 }}
+            whileTap={{ scale: 0.97 }}
+            className="relative w-64 focus:outline-none"
+            aria-label="편지 열어보기"
+          >
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              className="relative"
+            >
+              {/* Envelope body */}
+              <div className="relative w-full h-40 bg-[#FFFDF8] rounded-2xl shadow-md border border-border/60 overflow-hidden">
+                {/* Flap */}
+                <div
+                  className="absolute inset-x-0 top-0 h-20 bg-[#FFF6E9] border-b border-border/50"
+                  style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)" }}
+                ></div>
+                {/* Seal */}
+                <div className="absolute left-1/2 top-14 -translate-x-1/2 w-10 h-10 rounded-full bg-primary/90 shadow-sm flex items-center justify-center">
+                  <div className="w-4 h-4 rounded-full bg-white/40"></div>
+                </div>
+                <p className="absolute bottom-4 inset-x-0 text-sm text-muted-foreground">
+                  To. {user.nickname || '조각이 친구'}
+                </p>
+              </div>
+            </motion.div>
+          </motion.button>
+
+          <Button size="lg" className="w-full max-w-xs rounded-2xl h-14" onClick={() => setOpened(true)}>
+            열어보기
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-background p-6">
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
@@ -68,21 +121,28 @@ export function DailyCheckin() {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-8"
           >
-            <div className="flex justify-center mb-8">
+            <div className="flex justify-center mb-6">
               <Character size="sm" />
             </div>
 
-            <div className="bg-white p-6 rounded-3xl rounded-tl-none shadow-sm border border-border/50 text-foreground text-lg leading-relaxed relative">
+            {/* Letter paper */}
+            <motion.div
+              initial={step === 0 ? { scaleY: 0.85, opacity: 0 } : false}
+              animate={{ scaleY: 1, opacity: 1 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="bg-[#FFFDF8] p-6 rounded-3xl shadow-sm border border-border/60 relative overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1.5 bg-primary/30"></div>
+              <p className="text-xs text-muted-foreground mb-3">오늘의 편지 · {step + 1}/3</p>
               {user.lastMessage && step === 0 ? (
                 <>
                   <p className="text-sm text-primary mb-2 font-medium">{user.lastMessage}</p>
-                  <p>{currentQ}</p>
+                  <p className="text-foreground text-lg leading-relaxed">{currentQ}</p>
                 </>
               ) : (
-                currentQ
+                <p className="text-foreground text-lg leading-relaxed">{currentQ}</p>
               )}
-              <div className="absolute top-0 -left-3 w-4 h-4 bg-white border-l border-t border-border/50 transform -skew-x-[20deg]"></div>
-            </div>
+            </motion.div>
 
             <div className={`mt-8 ${step === 2 ? 'grid grid-cols-2 gap-3' : 'space-y-3'}`}>
               {options.map((opt) => (

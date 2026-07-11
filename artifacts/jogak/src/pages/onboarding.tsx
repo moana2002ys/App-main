@@ -39,40 +39,36 @@ const COLORS = [
   { id: "#F472B6", name: "부드러운 분홍" }
 ];
 
+// step 0: 인트로 / 1~4: 온보딩 설문 / 5: 닉네임·캐릭터 색
 export function Onboarding() {
   const { updateUser, setView } = useAppStore();
-  const [step, setStep] = useState(0); // 0: color, 1-4: questions
-  const [color, setColor] = useState("#FBBF24");
+  const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<OnboardingAnswers>>({});
+  const [nickname, setNickname] = useState("");
+  const [color, setColor] = useState("#FBBF24");
 
-  const handleNext = (val?: string) => {
-    if (step === 0) {
-      updateUser({ characterColor: color });
-      setStep(1);
-    } else {
-      const q = QUESTIONS[step - 1];
-      const newAnswers = { ...answers, [q.id]: val } as Partial<OnboardingAnswers>;
-      setAnswers(newAnswers);
-      
-      if (step < QUESTIONS.length) {
-        setStep(step + 1);
-      } else {
-        // Finish onboarding
-        const finalAnswers = newAnswers as OnboardingAnswers;
-        const { stage, baseBandLow, baseBandHigh, forbidden } = determineStage(finalAnswers);
-        
-        updateUser({
-          onboarding: finalAnswers,
-          stage,
-          baseBandLow,
-          baseBandHigh,
-          currentBandLow: baseBandLow,
-          currentBandHigh: baseBandHigh,
-          forbidden
-        });
-        setView("daily_checkin");
-      }
-    }
+  const handleAnswer = (val: string) => {
+    const q = QUESTIONS[step - 1];
+    setAnswers(prev => ({ ...prev, [q.id]: val }));
+    setStep(step + 1);
+  };
+
+  const handleFinish = () => {
+    const finalAnswers = answers as OnboardingAnswers;
+    const { stage, baseBandLow, baseBandHigh, forbidden } = determineStage(finalAnswers);
+
+    updateUser({
+      nickname: nickname.trim() || "조각이 친구",
+      characterColor: color,
+      onboarding: finalAnswers,
+      stage,
+      baseBandLow,
+      baseBandHigh,
+      currentBandLow: baseBandLow,
+      currentBandHigh: baseBandHigh,
+      forbidden
+    });
+    setView("daily_checkin");
   };
 
   return (
@@ -81,39 +77,35 @@ export function Onboarding() {
         <AnimatePresence mode="wait">
           {step === 0 ? (
             <motion.div
-              key="step0"
+              key="intro"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="space-y-8 flex flex-col items-center text-center"
             >
-              <div className="space-y-2">
-                <h1 className="text-2xl font-medium text-foreground">반가워요.</h1>
-                <p className="text-muted-foreground">함께할 조각이의 색을 골라볼까요?</p>
-              </div>
-
-              <div className="my-8">
+              <div className="my-6">
                 <Character className="scale-125" showItems={false} />
               </div>
 
-              <div className="flex gap-4 justify-center">
-                {COLORS.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => setColor(c.id)}
-                    className={`w-12 h-12 rounded-full transition-transform ${color === c.id ? 'scale-125 ring-4 ring-offset-4 ring-primary/30' : 'hover:scale-110'}`}
-                    style={{ backgroundColor: c.id }}
-                  />
-                ))}
+              <div className="space-y-3">
+                <h1 className="text-2xl font-medium text-foreground">반가워요.</h1>
+                <p className="text-muted-foreground leading-relaxed">
+                  조각조각은 하루에 하나,<br />
+                  아주 작은 조각을 함께 모으는 공간이에요.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  먼저 몇 가지만 가볍게 여쭤볼게요.<br />
+                  정답은 없으니 편하게 골라주세요.
+                </p>
               </div>
 
-              <Button size="lg" className="w-full rounded-2xl mt-8" onClick={() => handleNext()}>
-                좋아요
+              <Button size="lg" className="w-full rounded-2xl mt-4 h-14" onClick={() => setStep(1)}>
+                천천히 시작하기
               </Button>
             </motion.div>
-          ) : (
+          ) : step <= QUESTIONS.length ? (
             <motion.div
-              key={`step${step}`}
+              key={`q${step}`}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -125,7 +117,6 @@ export function Onboarding() {
 
               <div className="bg-white p-6 rounded-3xl rounded-tl-none shadow-sm border border-border/50 text-foreground text-lg leading-relaxed relative">
                 {QUESTIONS[step - 1].question}
-                {/* Speech bubble tail */}
                 <div className="absolute top-0 -left-3 w-4 h-4 bg-white border-l border-t border-border/50 transform -skew-x-[20deg]"></div>
               </div>
 
@@ -135,12 +126,62 @@ export function Onboarding() {
                     key={opt}
                     variant="outline"
                     className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
-                    onClick={() => handleNext(QUESTIONS[step - 1].values[i])}
+                    onClick={() => handleAnswer(QUESTIONS[step - 1].values[i])}
                   >
                     {opt}
                   </Button>
                 ))}
               </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-8 flex flex-col items-center text-center"
+            >
+              <div className="space-y-2">
+                <h2 className="text-2xl font-medium text-foreground">거의 다 왔어요.</h2>
+                <p className="text-muted-foreground">함께할 조각이를 꾸며볼까요?</p>
+              </div>
+
+              <motion.div
+                key={color}
+                initial={{ scale: 0.92 }}
+                animate={{ scale: 1 }}
+                className="my-4"
+              >
+                <Character className="scale-125" showItems={false} colorOverride={color} />
+              </motion.div>
+
+              <div className="flex gap-4 justify-center">
+                {COLORS.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setColor(c.id)}
+                    aria-label={c.name}
+                    className={`w-12 h-12 rounded-full transition-transform ${color === c.id ? 'scale-125 ring-4 ring-offset-4 ring-primary/30' : 'hover:scale-110'}`}
+                    style={{ backgroundColor: c.id }}
+                  />
+                ))}
+              </div>
+
+              <div className="w-full space-y-2">
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={e => setNickname(e.target.value)}
+                  maxLength={10}
+                  placeholder="닉네임을 지어주세요 (예: 새벽별)"
+                  className="w-full bg-white rounded-2xl px-5 py-4 text-center text-foreground placeholder:text-muted-foreground border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <p className="text-xs text-muted-foreground">비워두면 '조각이 친구'로 불러드릴게요.</p>
+              </div>
+
+              <Button size="lg" className="w-full rounded-2xl h-14" onClick={handleFinish}>
+                좋아요, 시작할게요
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>

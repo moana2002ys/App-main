@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 
-export function Character({ className, size = "lg", showItems = true }: { className?: string, size?: "sm" | "lg", showItems?: boolean }) {
+export function Character({ className, size = "lg", showItems = true, colorOverride }: { className?: string, size?: "sm" | "lg", showItems?: boolean, colorOverride?: string }) {
   const { user } = useAppStore();
-  const color = user.characterColor || "#FBBF24";
+  const color = colorOverride || user.characterColor || "#FBBF24";
 
   const isSmall = size === "sm";
   const s = isSmall ? 60 : 180;

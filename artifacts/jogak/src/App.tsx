@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppStore } from "@/lib/store";
 import { PhoneFrame } from "@/components/PhoneFrame";
 
+import { Auth } from "@/pages/auth";
 import { Onboarding } from "@/pages/onboarding";
 import { DailyCheckin } from "@/pages/daily-checkin";
 import { Home } from "@/pages/home";
@@ -18,6 +19,7 @@ function MainFlow() {
 
   return (
     <PhoneFrame>
+      {view === 'auth' && <Auth />}
       {view === 'onboarding' && <Onboarding />}
       {view === 'daily_checkin' && <DailyCheckin />}
       {view === 'home' && <Home />}

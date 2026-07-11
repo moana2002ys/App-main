@@ -3,6 +3,7 @@ import { Area, Stage, OnboardingAnswers, DailyAnswers, adjustBandNextDay } from 
 import { Challenge } from "@workspace/api-client-react";
 
 export type ViewState = 
+  | 'auth'
   | 'onboarding'
   | 'daily_checkin'
   | 'home'
@@ -10,6 +11,8 @@ export type ViewState =
   | 'growth';
 
 export interface UserState {
+  email: string;
+  nickname: string;
   characterColor: string;
   stage: Stage | null;
   baseBandLow: number;
@@ -45,6 +48,8 @@ interface AppContextType {
 }
 
 const defaultUser: UserState = {
+  email: '',
+  nickname: '',
   characterColor: '#FBBF24',
   stage: null,
   baseBandLow: 1,
@@ -68,7 +73,7 @@ const defaultUser: UserState = {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [view, setView] = useState<ViewState>('onboarding');
+  const [view, setView] = useState<ViewState>('auth');
   const [user, setUser] = useState<UserState>(defaultUser);
 
   const updateUser = useCallback((updates: Partial<UserState>) => {

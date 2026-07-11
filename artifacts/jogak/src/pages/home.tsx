@@ -81,7 +81,7 @@ export function Home() {
     <div className="flex flex-col h-full bg-background">
       <div className="px-6 pt-8 pb-4 flex justify-between items-center bg-white/50 backdrop-blur-sm border-b border-border/50 sticky top-0 z-20">
         <div>
-          <h2 className="text-sm font-medium text-muted-foreground">Day {user.dayCount}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">Day {user.dayCount} · {user.nickname || '조각이 친구'}님</h2>
         </div>
         <button onClick={navToGrowth} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-border/50 hover:bg-secondary/50 transition-colors">
           <Character size="sm" className="scale-[0.4] -mx-4" />
