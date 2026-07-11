@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
-import { DailyAnswers, Area } from "@/lib/classifier";
+import { DailyAnswers, Area, AREAS as AREA_KEYS, isAreaEligible } from "@/lib/classifier";
+import { getSurveyCategories } from "@workspace/mission-bank";
 
 const CONDITIONS = [
   { label: "바닥이에요", value: "바닥", emoji: "💧" },
@@ -12,12 +13,19 @@ const CONDITIONS = [
   { label: "조금 괜찮아요", value: "괜찮음", emoji: "☀️" }
 ];
 
-const AREAS = [
-  { label: "규칙적인 하루 리듬", value: "rhythm" },
-  { label: "나를 돌보는 시간", value: "selfcare" },
-  { label: "사람들과의 관계", value: "relationship" },
-  { label: "일이나 진로 방향", value: "social" },
-  { label: "잘 모르겠어요", value: "unknown" }
+// 개선 유형(영역) → 화면 표시 라벨. 진단 라벨·임상 용어 없음.
+const AREA_LABEL: Record<Area, string> = {
+  rhythm: "규칙적인 하루 리듬",
+  selfcare: "나를 돌보는 시간",
+  relationship: "사람들과의 관계",
+  social: "일이나 진로 방향",
+};
+// 유형 노출 순서(항상 안전한 생활리듬·자기돌봄이 먼저).
+const AREA_ORDER: Area[] = [
+  AREA_KEYS.rhythm,
+  AREA_KEYS.selfcare,
+  AREA_KEYS.relationship,
+  AREA_KEYS.social,
 ];
 
 const INTERESTS = [
@@ -30,11 +38,27 @@ export function DailyCheckin() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<DailyAnswers>>({});
 
+  // 설문 2번째 질문 활동 후보 = 저장된 진단(금지조건) + 방금 답한 컨디션 게이트를 통과하는 활동.
+  // 카테고리 게이트(getSurveyCategories) + 영역 게이트(isAreaEligible)를 함께 적용한다.
+  const activityGroups = useMemo(() => {
+    const forbidden = user.forbidden ?? [];
+    const condition = answers.condition ?? "그저 그럼";
+    const eligible = getSurveyCategories({ forbidden, condition }).filter((c) =>
+      isAreaEligible(c.area as Area, forbidden),
+    );
+    return AREA_ORDER.map((area) => ({
+      area,
+      label: AREA_LABEL[area],
+      items: eligible
+        .filter((c) => c.area === area)
+        .map((c) => ({ id: c.id, label: c.label })),
+    })).filter((g) => g.items.length > 0);
+  }, [user.forbidden, answers.condition]);
+
   const handleNext = (val: string) => {
     let newAnswers = { ...answers };
 
     if (step === 0) newAnswers.condition = val;
-    if (step === 1) newAnswers.area = val as Area | 'unknown';
     if (step === 2) newAnswers.interest = val;
 
     setAnswers(newAnswers);
@@ -47,6 +71,12 @@ export function DailyCheckin() {
     }
   };
 
+  // 설문 2번째 질문: 구체 활동 선택 → 활동이 속한 개선 유형(영역)이 자동 결정된다.
+  const handleActivity = (area: Area | 'unknown', activityId?: string) => {
+    setAnswers({ ...answers, area, activityId });
+    setStep(2);
+  };
+
   const currentQ = step === 0 
     ? "오늘 기분이나 컨디션은 좀 어때요?" 
     : step === 1 
@@ -55,9 +85,9 @@ export function DailyCheckin() {
 
   const options: { label: string; value: string; prefix?: string }[] = step === 0 
     ? CONDITIONS.map(c => ({ label: c.label, value: c.value, prefix: c.emoji }))
-    : step === 1
-    ? AREAS.map(a => ({ label: a.label, value: a.value }))
-    : INTERESTS.map(i => ({ label: i, value: i }));
+    : step === 2
+    ? INTERESTS.map(i => ({ label: i, value: i }))
+    : [];
 
   if (!opened) {
     return (
@@ -154,6 +184,34 @@ export function DailyCheckin() {
               )}
             </motion.div>
 
+            {step === 1 ? (
+              <div className="mt-8 space-y-6">
+                {activityGroups.map((group) => (
+                  <div key={group.area} className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground px-1">{group.label}</p>
+                    <div className="space-y-2">
+                      {group.items.map((item) => (
+                        <Button
+                          key={item.id}
+                          variant="outline"
+                          className="w-full justify-start text-left h-auto py-3.5 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
+                          onClick={() => handleActivity(group.area, item.id)}
+                        >
+                          {item.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full justify-center text-center h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 text-muted-foreground"
+                  onClick={() => handleActivity('unknown', undefined)}
+                >
+                  잘 모르겠어요
+                </Button>
+              </div>
+            ) : (
             <div className={`mt-8 ${step === 2 ? 'grid grid-cols-2 gap-3' : 'space-y-3'}`}>
               {options.map((opt) => (
                 <Button
@@ -167,6 +225,7 @@ export function DailyCheckin() {
                 </Button>
               ))}
             </div>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>

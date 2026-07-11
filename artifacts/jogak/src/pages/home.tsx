@@ -71,6 +71,7 @@ export function Home() {
       contact: user.onboarding.contact,
       condition: user.daily.condition,
       interest: user.daily.interest,
+      activityId: user.daily.activityId,
       diversityAreas
     };
 
@@ -89,6 +90,7 @@ export function Home() {
             forbidden: user.forbidden,
             condition: user.daily?.condition,
             interest: user.daily?.interest,
+            preferredCategoryId: user.daily?.activityId,
           },
         );
         updateUser({ todayChallenges: fallback });

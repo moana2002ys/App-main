@@ -17,6 +17,8 @@ export interface SeedCategory {
   id: string; // 예: "2-D"
   area: Area;
   name: string; // 예: "바깥과 연결(외출 노출)"
+  // 설문 등 사용자 화면에 노출하는 담백·따뜻한 표시 문구(임상 용어 없음).
+  label: string; // 예: "바깥과 연결되기"
   levels: { min: number; max: number }; // 적용 난이도 범위
   evidence: string[]; // 근거태그: BA, EXP, SE, EW, IPS, CIRC, KOR
   gate?: CategoryGate;

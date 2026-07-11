@@ -86,6 +86,7 @@ export const GenerateChallengesBody = zod.object({
   "contact": zod.string().describe('Onboarding contact comfort answer'),
   "condition": zod.string().describe('Today\'s condition answer'),
   "interest": zod.string().describe('Today\'s interest\/preference answer'),
+  "activityId": zod.string().optional().describe('Seed-bank category id of the specific activity the user chose in the daily survey (e.g. \"2-D\"). Used to bias the selected-area missions toward that activity. Omitted when the user picked \"not sure\" (server then uses the stage default area only).\n'),
   "diversityAreas": zod.array(zod.object({
   "area": zod.enum(['rhythm', 'selfcare', 'relationship', 'social']),
   "bandLow": zod.number().min(1).max(generateChallengesBodyDiversityAreasItemBandLowMax).describe('Lowest difficulty level for this area (gate\/condition adjusted)'),

@@ -11,6 +11,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-A",
     area: "rhythm",
     name: "기상·취침 앵커",
+    label: "기상·취침 리듬 잡기",
     levels: { min: 1, max: 5 },
     evidence: ["BA", "CIRC"],
     seeds: [
@@ -28,6 +29,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-B",
     area: "rhythm",
     name: "빛과 공기",
+    label: "빛·공기 들이기",
     levels: { min: 1, max: 4 },
     evidence: ["CIRC", "BA"],
     seeds: [
@@ -44,6 +46,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-C",
     area: "rhythm",
     name: "식사 리듬",
+    label: "식사 리듬 챙기기",
     levels: { min: 1, max: 5 },
     evidence: ["BA", "KOR"],
     seeds: [
@@ -61,6 +64,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-D",
     area: "rhythm",
     name: "수분·기본 신체",
+    label: "물·기본 몸 챙기기",
     levels: { min: 1, max: 3 },
     evidence: ["BA"],
     seeds: ["물 한 컵 마시기", "30초 스트레칭하기", "창가에서 기지개 켜기", "손 씻기"],
@@ -70,6 +74,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-E",
     area: "rhythm",
     name: "하루 구조화",
+    label: "하루 작게 계획하기",
     levels: { min: 1, max: 4 },
     evidence: ["BA", "SE"],
     seeds: [
@@ -85,6 +90,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "1-F",
     area: "rhythm",
     name: "리듬 자각·기록",
+    label: "내 리듬 기록하기",
     levels: { min: 1, max: 3 },
     evidence: ["BA"],
     seeds: [
@@ -101,6 +107,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-A",
     area: "selfcare",
     name: "위생·몸단장",
+    label: "위생·몸단장 하기",
     levels: { min: 1, max: 4 },
     evidence: ["BA", "KOR"],
     seeds: [
@@ -118,6 +125,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-B",
     area: "selfcare",
     name: "감정 자각·기록",
+    label: "감정 살펴보고 적기",
     levels: { min: 1, max: 5 },
     evidence: ["EW", "BA"],
     seeds: [
@@ -134,6 +142,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-C",
     area: "selfcare",
     name: "몸 움직이기(실내)",
+    label: "실내에서 몸 움직이기",
     levels: { min: 1, max: 4 },
     evidence: ["BA"],
     seeds: [
@@ -150,6 +159,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-D",
     area: "selfcare",
     name: "바깥과 연결(외출 노출)",
+    label: "바깥과 연결되기",
     levels: { min: 1, max: 5 },
     evidence: ["EXP", "SE"],
     gate: { forbiddenTags: ["외출"], minCondition: "그저 그럼" },
@@ -168,6 +178,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-E",
     area: "selfcare",
     name: "공간 돌보기",
+    label: "공간 정돈하기",
     levels: { min: 1, max: 4 },
     evidence: ["BA", "KOR"],
     seeds: [
@@ -184,6 +195,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-F",
     area: "selfcare",
     name: "취향·몰입",
+    label: "좋아하는 것에 몰입하기",
     levels: { min: 1, max: 4 },
     evidence: ["BA", "KOR"],
     seeds: [
@@ -199,6 +211,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "2-G",
     area: "selfcare",
     name: "자기연민·인지(저강도)",
+    label: "나를 다독이기",
     levels: { min: 1, max: 3 },
     evidence: ["SE", "EW"],
     seeds: [
@@ -215,6 +228,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-A",
     area: "relationship",
     name: "비대면 관찰",
+    label: "비대면으로 지켜보기",
     levels: { min: 1, max: 1 },
     evidence: ["EXP", "KOR"],
     seeds: [
@@ -228,6 +242,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-B",
     area: "relationship",
     name: "비대면 흔적 남기기",
+    label: "흔적 남기기",
     levels: { min: 2, max: 2 },
     evidence: ["EXP"],
     seeds: [
@@ -241,6 +256,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-C",
     area: "relationship",
     name: "비대면 소통(비동기)",
+    label: "비대면 메시지 보내기",
     levels: { min: 2, max: 4 },
     evidence: ["EXP", "SE"],
     seeds: [
@@ -255,6 +271,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-D",
     area: "relationship",
     name: "약한 유대",
+    label: "가벼운 한마디 건네기",
     levels: { min: 3, max: 4 },
     evidence: ["EXP", "KOR"],
     gate: { forbiddenTags: ["외출", "대면"] },
@@ -269,6 +286,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-E",
     area: "relationship",
     name: "신뢰 인물 1명",
+    label: "믿을 만한 한 사람에게",
     levels: { min: 4, max: 5 },
     evidence: ["EXP", "KOR"],
     gate: { forbiddenTags: ["전화", "대면"] },
@@ -284,6 +302,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "3-F",
     area: "relationship",
     name: "또래·자조",
+    label: "또래·자조 찾기",
     levels: { min: 2, max: 5 },
     evidence: ["KOR", "SE"],
     seeds: [
@@ -299,6 +318,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-A",
     area: "social",
     name: "관심·강점 탐색",
+    label: "관심·강점 찾기",
     levels: { min: 1, max: 2 },
     evidence: ["IPS", "SE"],
     seeds: [
@@ -314,6 +334,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-B",
     area: "social",
     name: "정보 탐색",
+    label: "정보 탐색하기",
     levels: { min: 2, max: 3 },
     evidence: ["IPS", "BA"],
     seeds: [
@@ -328,6 +349,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-C",
     area: "social",
     name: "자기표현·기록",
+    label: "나를 표현·기록하기",
     levels: { min: 3, max: 4 },
     evidence: ["IPS", "EW", "SE"],
     seeds: [
@@ -342,6 +364,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-D",
     area: "social",
     name: "자원 연계",
+    label: "지원 자원 찾기",
     levels: { min: 3, max: 4 },
     evidence: ["IPS", "KOR"],
     seeds: [
@@ -355,6 +378,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-E",
     area: "social",
     name: "경제 기초(정보)",
+    label: "경제 정보 알아보기",
     levels: { min: 2, max: 4 },
     evidence: ["KOR"],
     seeds: [
@@ -370,6 +394,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-F",
     area: "social",
     name: "소규모 경제·실전(외출 겸)",
+    label: "작은 실전 해보기",
     levels: { min: 3, max: 5 },
     evidence: ["EXP", "IPS"],
     gate: { forbiddenTags: ["외출"], minCondition: "그저 그럼" },
@@ -385,6 +410,7 @@ export const CATEGORIES: SeedCategory[] = [
     id: "4-G",
     area: "social",
     name: "학습·역량",
+    label: "배우기·역량 키우기",
     levels: { min: 2, max: 4 },
     evidence: ["IPS", "BA"],
     seeds: [

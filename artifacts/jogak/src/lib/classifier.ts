@@ -29,6 +29,9 @@ export interface DailyAnswers {
   condition: string; // 바닥 / 그저 그럼 / 괜찮음
   area: Area | 'unknown';
   interest: string;
+  // 설문 2번째 질문에서 고른 구체 활동의 시드뱅크 카테고리 id (예: "2-D").
+  // '잘 모르겠어요' 선택 시 undefined → 단계 기본 영역으로 처리.
+  activityId?: string;
 }
 
 export function determineStage(answers: OnboardingAnswers): { stage: Stage, baseBandLow: number, baseBandHigh: number, forbidden: string[] } {

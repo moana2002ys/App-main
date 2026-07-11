@@ -5,6 +5,7 @@ import {
   type Area,
   type AreaBand,
   type GeneratedMission,
+  CATEGORIES,
   buildFewShot,
   buildInterestHint,
   defaultMinutesForLevel,
@@ -94,6 +95,12 @@ router.post("/challenges/generate", async (req, res) => {
   const targetSelected = hasDiversity ? 2 : 4;
   const targetDiversity = hasDiversity ? 2 : 0;
 
+  // 사용자가 오늘 설문에서 고른 구체 활동(시드뱅크 카테고리). 선택 영역과 일치할 때만 시드/맥락으로 반영.
+  const chosenCategory =
+    body.activityId && CATEGORIES.find((c) => c.id === body.activityId);
+  const preferredCategoryId =
+    chosenCategory && chosenCategory.area === area ? chosenCategory.id : undefined;
+
   const fallback = () =>
     res.json({
       challenges: selectDiverseFallbackMissions({
@@ -102,6 +109,7 @@ router.post("/challenges/generate", async (req, res) => {
         forbidden: body.forbidden,
         condition: body.condition,
         interest: body.interest,
+        preferredCategoryId,
       }),
       source: "fallback",
     });
@@ -129,13 +137,19 @@ router.post("/challenges/generate", async (req, res) => {
         .join("\n\n")
     : "(다양성 후보 영역 없음 — 4개 모두 선택 영역에서 만든다)";
 
+  // 사용자가 고른 활동을 선택 영역 미션의 시드/맥락으로 강조(선택 영역 ${targetSelected}개 중 1개 이상 반영).
+  const chosenActivityBlock =
+    preferredCategoryId && chosenCategory
+      ? `\n[사용자가 오늘 고른 활동] ${chosenCategory.label} (${chosenCategory.name}) — 선택 영역 미션 ${targetSelected}개 중 최소 1개는 이 활동과 자연스럽게 이어지게 만든다. 씨앗: ${chosenCategory.seeds.slice(0, 3).join(" / ")}\n`
+      : "";
+
   const userPrompt = `회복단계: ${STAGE_KO[body.stage] ?? body.stage}
 선택 영역: ${AREA_KO[area]} (area="${area}", L${selected.bandLow}~${selected.bandHigh}) — 여기서 ${targetSelected}개
 금지조건: ${body.forbidden.length > 0 ? body.forbidden.join(", ") : "없음"}
 [온보딩 정보] 수면: ${body.sleep} / 외출부담: ${body.outing} / 대인접촉부담: ${body.contact}
 [오늘 설문] 컨디션: ${body.condition} / 희망영역: ${AREA_KO[area]} / 관심사: ${body.interest}
 [취향 반영 힌트] ${interestHint}
-
+${chosenActivityBlock}
 [선택 영역 열린 카테고리 & 시드 — 그대로 쓰지 말고 변주할 것]
 ${selectedFewShot}
 

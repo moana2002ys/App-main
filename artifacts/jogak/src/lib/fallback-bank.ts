@@ -9,7 +9,12 @@ import { AreaBand, selectDiverseFallbackMissions } from "@workspace/mission-bank
 export function getFallbackChallenges(
   selected: { area: Area; bandLow: number; bandHigh: number },
   diversity: AreaBand[],
-  opts?: { forbidden?: string[]; condition?: string; interest?: string },
+  opts?: {
+    forbidden?: string[];
+    condition?: string;
+    interest?: string;
+    preferredCategoryId?: string;
+  },
 ): Challenge[] {
   const missions = selectDiverseFallbackMissions({
     selected: {
@@ -21,6 +26,7 @@ export function getFallbackChallenges(
     forbidden: opts?.forbidden ?? [],
     condition: opts?.condition ?? "그저 그럼",
     interest: opts?.interest,
+    preferredCategoryId: opts?.preferredCategoryId,
     // 하루 안에서 안정적으로 같은 결과가 나오도록 날짜 기반 회전값 사용
     rotation: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
   });

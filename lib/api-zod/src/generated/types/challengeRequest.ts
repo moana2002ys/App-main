@@ -38,6 +38,8 @@ export interface ChallengeRequest {
   condition: string;
   /** Today's interest/preference answer */
   interest: string;
+  /** Seed-bank category id of the specific activity the user chose in the daily survey (e.g. "2-D"). Used to bias the selected-area missions toward that activity. Omitted when the user picked "not sure" (server then uses the stage default area only). */
+  activityId?: string;
   /** Gate-passed candidate areas (other than the selected area) for the 2 diversity picks, each with its gate/condition-adjusted difficulty band. May be empty when no other area passes the gates (server then fills all 4 from the selected area). */
   diversityAreas: AreaBand[];
 }

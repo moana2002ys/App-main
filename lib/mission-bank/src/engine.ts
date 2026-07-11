@@ -1,4 +1,4 @@
-import { CATEGORIES_BY_AREA, INTEREST_HINTS } from "./categories";
+import { CATEGORIES, CATEGORIES_BY_AREA, INTEREST_HINTS } from "./categories";
 import type {
   Area,
   Condition,
@@ -24,6 +24,35 @@ function clampLevel(level: number): number {
 export function defaultMinutesForLevel(level: number): number {
   const map: Record<number, number> = { 1: 2, 2: 3, 3: 5, 4: 10, 5: 15 };
   return map[clampLevel(level)] ?? 5;
+}
+
+// 카테고리 자체 게이트(금지태그·최소 컨디션)만 통과하는지 판정한다(밴드·영역 무관).
+// 설문 선택지 필터링 등 밴드와 무관하게 게이트만 볼 때 재사용한다(게이트 단일 출처).
+export function passesCategoryGate(
+  cat: SeedCategory,
+  params: { forbidden: string[]; condition: string },
+): boolean {
+  const gate = cat.gate;
+  if (!gate) return true;
+  if (gate.forbiddenTags?.some((t) => params.forbidden.includes(t))) {
+    return false;
+  }
+  if (
+    gate.minCondition &&
+    conditionRank(params.condition) < conditionRank(gate.minCondition)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+// 데일리 설문 2번째 질문에 노출할 활동 후보 = 카테고리 게이트를 통과하는 카테고리.
+// 영역(대인/외출) 게이트는 호출부(classifier.isAreaEligible)에서 함께 적용한다.
+export function getSurveyCategories(params: {
+  forbidden: string[];
+  condition: string;
+}): SeedCategory[] {
+  return CATEGORIES.filter((cat) => passesCategoryGate(cat, params));
 }
 
 // 오늘 상태에서 열리는 카테고리만 후보로 남긴다.
@@ -330,6 +359,8 @@ export function selectAreaMissions(params: {
   count?: number;
   avoidTitles?: Set<string>;
   usedCategories?: Set<string>;
+  // 사용자가 오늘 설문에서 고른 활동의 카테고리 id. 이 영역에서 우선 배정한다.
+  preferredCategoryId?: string;
 }): GeneratedMission[] {
   const { area, forbidden, condition, interest } = params;
   const lo = clampLevel(Math.min(params.bandLow, params.bandHigh));
@@ -347,6 +378,10 @@ export function selectAreaMissions(params: {
   });
   if (eligible.length === 0) return [];
 
+  const preferredCat = params.preferredCategoryId
+    ? eligible.find((c) => c.id === params.preferredCategoryId)
+    : undefined;
+
   const targetLevels = spreadLevels(lo, hi, count);
   const usedTitles = params.avoidTitles ?? new Set<string>();
   const usedCategories = params.usedCategories ?? new Set<string>();
@@ -362,7 +397,13 @@ export function selectAreaMissions(params: {
     // 이미 쓴 카테고리는 피해 다양성 확보
     const fresh = pool.filter((c) => !usedCategories.has(c.id));
     const cats = fresh.length > 0 ? fresh : pool;
-    const cat = pickByRotation(cats, rotation + idx);
+    // 선택 활동 카테고리는 담을 수 있는 첫 레벨 슬롯에 우선 배정한다.
+    const cat =
+      preferredCat &&
+      !usedCategories.has(preferredCat.id) &&
+      cats.some((c) => c.id === preferredCat.id)
+        ? preferredCat
+        : pickByRotation(cats, rotation + idx);
     usedCategories.add(cat.id);
 
     // 시드 선택: 회전 + 중복 회피
@@ -441,6 +482,8 @@ export function selectDiverseFallbackMissions(params: {
   condition: string;
   interest?: string;
   rotation?: number;
+  // 선택 영역에서 우선 배정할 활동 카테고리 id(설문 선택 활동).
+  preferredCategoryId?: string;
 }): GeneratedMission[] {
   const rotation =
     params.rotation ?? Math.floor(Date.now() / (1000 * 60 * 60 * 24));
@@ -457,6 +500,7 @@ export function selectDiverseFallbackMissions(params: {
     rotation,
     count: 2,
     avoidTitles: usedTitles,
+    preferredCategoryId: params.preferredCategoryId,
   });
 
   const diversityMissions: GeneratedMission[] = [];

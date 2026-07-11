@@ -253,6 +253,12 @@ components:
         interest:
           type: string
           description: Today's interest/preference answer
+        activityId:
+          type: string
+          description: >
+            Seed-bank category id of the specific activity the user chose in the daily survey
+            (e.g. "2-D"). Used to bias the selected-area missions toward that activity. Omitted
+            when the user picked "not sure" (server then uses the stage default area only).
         diversityAreas:
           type: array
           description: >
