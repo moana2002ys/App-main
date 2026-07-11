@@ -57,8 +57,12 @@ export function Home() {
         setLoading(false);
       },
       onError: () => {
-        // Fallback
-        const fallback = getFallbackChallenges(targetArea, low, high);
+        // Fallback (심화판 시드 뱅크 기반 · 게이트·한 활동·컨디션 규칙 준수)
+        const fallback = getFallbackChallenges(targetArea, low, high, {
+          forbidden: user.forbidden,
+          condition: user.daily?.condition,
+          interest: user.daily?.interest,
+        });
         updateUser({ todayChallenges: fallback });
         setLoading(false);
       }

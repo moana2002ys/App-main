@@ -182,6 +182,9 @@ importers:
       '@workspace/integrations-openai-ai-server':
         specifier: workspace:*
         version: link:../../lib/integrations-openai-ai-server
+      '@workspace/mission-bank':
+        specifier: workspace:*
+        version: link:../../lib/mission-bank
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -348,6 +351,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/mission-bank':
+        specifier: workspace:*
+        version: link:../../lib/mission-bank
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -658,6 +664,12 @@ importers:
       p-retry:
         specifier: ^7.1.1
         version: 7.1.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.4
+
+  lib/mission-bank:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
