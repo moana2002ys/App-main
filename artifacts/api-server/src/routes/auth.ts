@@ -13,6 +13,7 @@ const SESSION_DAYS = 30;
 function setSessionCookie(res: Response, token: string) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
