@@ -286,6 +286,20 @@ function pickByRotation<T>(arr: T[], offset: number): T {
   return arr[((offset % arr.length) + arr.length) % arr.length]!;
 }
 
+// 밴드[lo..hi]를 count개의 난이도로 고르게 편다.
+// count=1 → [mid], count=2 → [lo, hi], count=3 → [lo, mid, hi] …
+function spreadLevels(lo: number, hi: number, count: number): number[] {
+  const l = clampLevel(Math.min(lo, hi));
+  const h = clampLevel(Math.max(lo, hi));
+  if (count <= 1) return [clampLevel(Math.round((l + h) / 2))];
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    out.push(clampLevel(Math.round(l + t * (h - l))));
+  }
+  return out;
+}
+
 // 취향을 반영해 시드를 자연스럽게 변주(폴백에서도 한 활동·톤 유지).
 function weaveInterest(
   seed: string,
@@ -302,9 +316,10 @@ function weaveInterest(
   return seed;
 }
 
-// 폴백 미션 생성: LLM 실패/지연 시 같은 원리(카테고리 뼈대 × 변주)로 3개 생성.
-// 같은 영역·난이도(낮음·중간·높음)에서 서로 다른, 한 활동·게이트 준수 미션.
-export function selectFallbackMissions(params: {
+// 한 영역에서 count개의 미션을 뽑는다(카테고리 뼈대 × 변주).
+// 밴드 안에서 서로 다른 난이도로 펴고, 한 활동·게이트·중복회피 규칙을 지킨다.
+// avoidTitles/usedCategories를 넘기면 여러 영역에 걸쳐 중복을 함께 방지한다.
+export function selectAreaMissions(params: {
   area: Area;
   bandLow: number;
   bandHigh: number;
@@ -312,11 +327,14 @@ export function selectFallbackMissions(params: {
   condition: string;
   interest?: string;
   rotation?: number;
+  count?: number;
+  avoidTitles?: Set<string>;
+  usedCategories?: Set<string>;
 }): GeneratedMission[] {
   const { area, forbidden, condition, interest } = params;
   const lo = clampLevel(Math.min(params.bandLow, params.bandHigh));
   const hi = clampLevel(Math.max(params.bandLow, params.bandHigh));
-  const mid = clampLevel(Math.round((lo + hi) / 2));
+  const count = params.count ?? 3;
   const rotation =
     params.rotation ?? Math.floor(Date.now() / (1000 * 60 * 60 * 24));
 
@@ -327,12 +345,14 @@ export function selectFallbackMissions(params: {
     forbidden,
     condition,
   });
+  if (eligible.length === 0) return [];
 
-  const targetLevels = [lo, mid, hi];
-  const usedTitles = new Set<string>();
-  const usedCategories = new Set<string>();
+  const targetLevels = spreadLevels(lo, hi, count);
+  const usedTitles = params.avoidTitles ?? new Set<string>();
+  const usedCategories = params.usedCategories ?? new Set<string>();
 
-  const missions = targetLevels.map((level, idx) => {
+  const missions: GeneratedMission[] = [];
+  targetLevels.forEach((level, idx) => {
     // 해당 레벨을 담을 수 있는 카테고리 우선, 없으면 아무 적격 카테고리
     const coverCats = eligible.filter(
       (c) => c.levels.min <= level && c.levels.max >= level,
@@ -359,20 +379,21 @@ export function selectFallbackMissions(params: {
       }
     }
     if (!seed) {
+      const woven = cat.seeds.map((s) => weaveInterest(s, interest, area));
       seed =
-        cat.seeds.find(
-          (s) => !hasParallelActivities(weaveInterest(s, interest, area)),
-        ) ?? cat.seeds[0]!;
+        woven.find((s) => !usedTitles.has(s) && !hasParallelActivities(s)) ??
+        woven.find((s) => !hasParallelActivities(s)) ??
+        woven[0]!;
     }
     usedTitles.add(seed);
 
-    return {
+    missions.push({
       area,
       level,
       title: seed,
       minutes: defaultMinutesForLevel(level),
       reflectQ: pickByRotation(cat.reflectQs, rotation + idx),
-    };
+    });
   });
 
   missions.sort((a, b) => a.level - b.level);
@@ -385,6 +406,104 @@ export function selectFallbackMissions(params: {
     condition,
     interest,
   });
+}
+
+// 폴백 미션 생성: LLM 실패/지연 시 같은 원리(카테고리 뼈대 × 변주)로 3개 생성.
+// 같은 영역·난이도(낮음·중간·높음)에서 서로 다른, 한 활동·게이트 준수 미션.
+export function selectFallbackMissions(params: {
+  area: Area;
+  bandLow: number;
+  bandHigh: number;
+  forbidden: string[];
+  condition: string;
+  interest?: string;
+  rotation?: number;
+}): GeneratedMission[] {
+  return selectAreaMissions({ ...params, count: 3 });
+}
+
+// 영역 + 그 영역의 (게이트·컨디션 반영) 난이도 밴드.
+export interface AreaBand {
+  area: Area;
+  bandLow: number;
+  bandHigh: number;
+}
+
+// 하루 4개 폴백 구성: 선택 영역 2개 + 다양성 후보 영역 2개.
+// - 다양성 후보가 2개 이상: 서로 다른 두 영역에서 1개씩.
+// - 다양성 후보가 1개: 그 영역에서 서로 다른 2개.
+// - 다양성 후보가 0개: 선택 영역으로 2개를 더 채운다(빈 카드 없음).
+// 부족분이 생기면 선택 영역에서 우아하게 보충한다. 제목 중복은 전역으로 방지.
+export function selectDiverseFallbackMissions(params: {
+  selected: AreaBand;
+  diversity: AreaBand[];
+  forbidden: string[];
+  condition: string;
+  interest?: string;
+  rotation?: number;
+}): GeneratedMission[] {
+  const rotation =
+    params.rotation ?? Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+  const { forbidden, condition, interest } = params;
+  const usedTitles = new Set<string>();
+
+  const selectedMissions = selectAreaMissions({
+    area: params.selected.area,
+    bandLow: params.selected.bandLow,
+    bandHigh: params.selected.bandHigh,
+    forbidden,
+    condition,
+    interest,
+    rotation,
+    count: 2,
+    avoidTitles: usedTitles,
+  });
+
+  const diversityMissions: GeneratedMission[] = [];
+  const cands = params.diversity;
+  const pickFromArea = (band: AreaBand, count: number, seedOffset: number) =>
+    selectAreaMissions({
+      area: band.area,
+      bandLow: band.bandLow,
+      bandHigh: band.bandHigh,
+      forbidden,
+      condition,
+      interest,
+      rotation: rotation + seedOffset,
+      count,
+      avoidTitles: usedTitles,
+    });
+
+  if (cands.length >= 2) {
+    const n = cands.length;
+    const i1 = ((rotation % n) + n) % n;
+    const i2 = (i1 + 1) % n;
+    diversityMissions.push(...pickFromArea(cands[i1]!, 1, 0));
+    diversityMissions.push(...pickFromArea(cands[i2]!, 1, 1));
+  } else if (cands.length === 1) {
+    diversityMissions.push(...pickFromArea(cands[0]!, 2, 0));
+  }
+  // cands.length === 0 → 아래 보충 로직이 선택 영역으로 채운다.
+
+  let all = [...selectedMissions, ...diversityMissions];
+
+  // 부족분(게이트로 후보가 막혔거나 시드 부족)은 선택 영역에서 우아하게 채운다.
+  if (all.length < 4) {
+    const filler = selectAreaMissions({
+      area: params.selected.area,
+      bandLow: params.selected.bandLow,
+      bandHigh: params.selected.bandHigh,
+      forbidden,
+      condition,
+      interest,
+      rotation: rotation + 7,
+      count: 4 - all.length,
+      avoidTitles: usedTitles,
+    });
+    all = [...all, ...filler];
+  }
+
+  return all.slice(0, 4);
 }
 
 // LLM이 위반한(병렬 활동) 미션을 폴백 시드로 교체한다.

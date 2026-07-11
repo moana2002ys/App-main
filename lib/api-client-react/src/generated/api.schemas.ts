@@ -35,6 +35,32 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AreaBandArea = typeof AreaBandArea[keyof typeof AreaBandArea];
+
+
+export const AreaBandArea = {
+  rhythm: 'rhythm',
+  selfcare: 'selfcare',
+  relationship: 'relationship',
+  social: 'social',
+} as const;
+
+export interface AreaBand {
+  area: AreaBandArea;
+  /**
+     * Lowest difficulty level for this area (gate/condition adjusted)
+     * @minimum 1
+     * @maximum 5
+     */
+  bandLow: number;
+  /**
+     * Highest difficulty level for this area (gate/condition adjusted)
+     * @minimum 1
+     * @maximum 5
+     */
+  bandHigh: number;
+}
+
 /**
  * Internal recovery stage (never shown to user)
  */
@@ -90,6 +116,8 @@ export interface ChallengeRequest {
   condition: string;
   /** Today's interest/preference answer */
   interest: string;
+  /** Gate-passed candidate areas (other than the selected area) for the 2 diversity picks, each with its gate/condition-adjusted difficulty band. May be empty when no other area passes the gates (server then fills all 4 from the selected area). */
+  diversityAreas: AreaBand[];
 }
 
 export type ChallengeArea = typeof ChallengeArea[keyof typeof ChallengeArea];

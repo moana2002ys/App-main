@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Camera } from "lucide-react";
 import { useGenerateChallenges, useVerifyChallengePhoto } from "@workspace/api-client-react";
-import { determineTodayArea, capBandForArea, Area, AREAS } from "@/lib/classifier";
+import { determineTodayArea, capBandForArea, getDiversityAreas, Area, AREAS } from "@/lib/classifier";
 import { getFallbackChallenges } from "@/lib/fallback-bank";
 import { Challenge } from "@workspace/api-client-react";
 import { fileToDataUrl } from "@/lib/image";
@@ -43,6 +43,7 @@ export function Home() {
       ? AREAS.rhythm
       : determineTodayArea(stage, user.daily.area as Area | 'unknown', user.forbidden);
 
+    // 오늘 컨디션 반영 밴드(선택 영역 캡 적용 전) — 다양성 후보 밴드 산출의 기준값
     let low = user.currentBandLow;
     let high = user.currentBandHigh;
 
@@ -51,21 +52,26 @@ export function Home() {
       high = Math.max(1, high - 1);
     }
 
+    // 다양성 후보 영역(선택 영역 제외 · 게이트 통과 · 영역별 캡 적용)
+    const diversityAreas = getDiversityAreas(stage, targetArea, user.forbidden, low, high);
+
+    // 선택 영역 캡 적용
     const capped = capBandForArea(stage, targetArea, low, high);
-    low = capped.low;
-    high = capped.high;
+    const selLow = capped.low;
+    const selHigh = capped.high;
 
     const payload = {
       stage,
       area: targetArea,
-      bandLow: low,
-      bandHigh: high,
+      bandLow: selLow,
+      bandHigh: selHigh,
       forbidden: user.forbidden,
       sleep: user.onboarding.sleep,
       outing: user.onboarding.outing,
       contact: user.onboarding.contact,
       condition: user.daily.condition,
-      interest: user.daily.interest
+      interest: user.daily.interest,
+      diversityAreas
     };
 
     generateMut.mutate({ data: payload }, {
@@ -75,11 +81,16 @@ export function Home() {
       },
       onError: () => {
         // Fallback (심화판 시드 뱅크 기반 · 게이트·한 활동·컨디션 규칙 준수)
-        const fallback = getFallbackChallenges(targetArea, low, high, {
-          forbidden: user.forbidden,
-          condition: user.daily?.condition,
-          interest: user.daily?.interest,
-        });
+        // 선택 영역 2개 + 다양성 후보 2개(후보 부족 시 선택 영역으로 보충)
+        const fallback = getFallbackChallenges(
+          { area: targetArea, bandLow: selLow, bandHigh: selHigh },
+          diversityAreas,
+          {
+            forbidden: user.forbidden,
+            condition: user.daily?.condition,
+            interest: user.daily?.interest,
+          },
+        );
         updateUser({ todayChallenges: fallback });
         setLoading(false);
       }

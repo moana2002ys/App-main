@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AreaBand } from './areaBand';
 import type { ChallengeRequestArea } from './challengeRequestArea';
 import type { ChallengeRequestStage } from './challengeRequestStage';
 
@@ -37,4 +38,6 @@ export interface ChallengeRequest {
   condition: string;
   /** Today's interest/preference answer */
   interest: string;
+  /** Gate-passed candidate areas (other than the selected area) for the 2 diversity picks, each with its gate/condition-adjusted difficulty band. May be empty when no other area passes the gates (server then fills all 4 from the selected area). */
+  diversityAreas: AreaBand[];
 }

@@ -1,20 +1,23 @@
 import { Area } from "./classifier";
 import { Challenge } from "@workspace/api-client-react";
-import { selectFallbackMissions } from "@workspace/mission-bank";
+import { AreaBand, selectDiverseFallbackMissions } from "@workspace/mission-bank";
 
 // 심화판 시드 뱅크(공유 패키지 @workspace/mission-bank)를 단일 소스로 사용한다.
 // LLM 실패/지연(5초) 시에도 같은 원리(카테고리 뼈대 × 변주)로 미션이 나오며,
 // 한 활동 원칙·게이트·무비용·컨디션 규칙을 동일하게 지킨다.
+// 하루 4개 구성: 선택 영역 2개 + 다양성 후보 영역 2개(후보 부족 시 선택 영역으로 보충).
 export function getFallbackChallenges(
-  area: Area,
-  low: number,
-  high: number,
+  selected: { area: Area; bandLow: number; bandHigh: number },
+  diversity: AreaBand[],
   opts?: { forbidden?: string[]; condition?: string; interest?: string },
 ): Challenge[] {
-  const missions = selectFallbackMissions({
-    area,
-    bandLow: low,
-    bandHigh: high,
+  const missions = selectDiverseFallbackMissions({
+    selected: {
+      area: selected.area,
+      bandLow: selected.bandLow,
+      bandHigh: selected.bandHigh,
+    },
+    diversity,
     forbidden: opts?.forbidden ?? [],
     condition: opts?.condition ?? "그저 그럼",
     interest: opts?.interest,

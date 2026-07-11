@@ -3,13 +3,15 @@ import { GenerateChallengesBody, VerifyChallengePhotoBody } from "@workspace/api
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   type Area,
+  type AreaBand,
+  type GeneratedMission,
   buildFewShot,
   buildInterestHint,
   defaultMinutesForLevel,
   enforceComposition,
   hasParallelActivities,
   repairMission,
-  selectFallbackMissions,
+  selectDiverseFallbackMissions,
 } from "@workspace/mission-bank";
 
 const router: IRouter = Router();
@@ -29,11 +31,21 @@ const STAGE_KO: Record<string, string> = {
 };
 
 
-const SYSTEM_PROMPT = `당신은 고립 청년의 회복을 돕는 미션 설계자입니다. 아래 '오늘 조건'과 '사용자 맥락', 그리고 '열린 카테고리'를 근거로 오늘의 미션 3개를 생성하세요(같은 영역, 난이도 낮음→중간→높음 순).
+const SYSTEM_PROMPT = `당신은 고립 청년의 회복을 돕는 미션 설계자입니다. 아래 '오늘 조건'과 '사용자 맥락', '선택 영역'과 '다양성 후보 영역'을 근거로 오늘의 미션 4개를 생성하세요.
+
+[구성 — 매우 중요]
+- 총 4개를 만든다: 2개는 '선택 영역'에서(난이도를 서로 다르게, 낮음·높음), 2개는 '다양성 후보 영역'에서.
+- 다양성 2개는 오늘 컨디션·관심사에 가장 잘 맞는 후보 영역에서 고른다.
+  · 후보 영역이 2개 이상이면 서로 다른 두 영역에서 1개씩 만든다.
+  · 후보 영역이 1개뿐이면 그 영역에서 서로 다른 2개를 만든다.
+  · 후보 영역이 없다고 표시되면 4개 모두 선택 영역에서 난이도를 펴 서로 다르게 만든다.
+- 각 미션의 "area"는 그 미션이 실제로 속한 영역 코드(rhythm/selfcare/relationship/social)로 정확히 표기한다.
+- 각 미션은 그 영역에 대해 제공된 난이도 범위(L#~#)를 벗어나지 않는다.
+- 4개는 문구·소재·난이도·소요시간이 서로 겹치지 않게 만든다.
 
 [생성 원리]
 - 개별 문장을 고정하지 말고 "카테고리 뼈대 × 변주 살"로 매번 다르게 만든다.
-- 열린 카테고리 중 희망영역·난이도에 맞는 것을 고르고, 취향(관심사)·형식(기록/탐색/행동)·시간대(아침/낮/저녁/자기 전)·소재(사용자가 이미 하는 활동)를 조합해 서로 다른 3개를 만든다.
+- 열린 카테고리 중 영역·난이도에 맞는 것을 고르고, 취향(관심사)·형식(기록/탐색/행동)·시간대(아침/낮/저녁/자기 전)·소재(사용자가 이미 하는 활동)를 조합한다.
 - 씨앗(시드)은 참고용 예시일 뿐, 그대로 복붙하지 말고 변주한다.
 
 [구성 규칙]
@@ -47,7 +59,7 @@ const SYSTEM_PROMPT = `당신은 고립 청년의 회복을 돕는 미션 설계
 - '그리고/및/~하고 ~하기/~하면서/~한 뒤/~하고 나서/~한 채/~틀어둔 채' 같이 두 활동을 잇거나 겹치는 표현을 쓰지 않는다.
 
 [안전·가드레일 — 반드시 준수]
-- 미션영역과 난이도밴드를 벗어나지 않는다. 5~15분 내 끝나는 아주 작은 행동.
+- 각 미션의 영역과 난이도밴드를 벗어나지 않는다. 5~15분 내 끝나는 아주 작은 행동.
 - 금지조건에 해당하는 행동(대면·전화·외출 등)은 절대 포함하지 않는다. 게이트가 닫힌 카테고리는 쓰지 않는다.
 - 무비용: 결제·구매·유료 미션 금지(무료 정보 탐색은 허용). 무낙인: 고립/은둔/환자 등 규정 언어 금지.
 - 컨디션=바닥이면 밴드 -1 및 기록형(쓰기·고르기·표시) 위주로.
@@ -55,7 +67,7 @@ const SYSTEM_PROMPT = `당신은 고립 청년의 회복을 돕는 미션 설계
 - 추상적 조언("긍정적으로 생각하기") 금지. 구체적·실행가능하게. 회고질문 한 줄 포함.
 
 [출력]
-- 출력은 JSON 배열 3개만. 다른 텍스트 없이 배열만 출력:
+- 출력은 JSON 배열 4개만. 다른 텍스트 없이 배열만 출력:
 [{ "area": "...", "level": n, "title": "미션 문구", "minutes": n, "reflect_q": "완료 후 한 줄 회고 질문" }]`;
 
 router.post("/challenges/generate", async (req, res) => {
@@ -67,12 +79,26 @@ router.post("/challenges/generate", async (req, res) => {
   const body = parsed.data;
   const area = body.area as Area;
 
+  const selected: AreaBand = {
+    area,
+    bandLow: body.bandLow,
+    bandHigh: body.bandHigh,
+  };
+  const diversity: AreaBand[] = (body.diversityAreas ?? []).map((d) => ({
+    area: d.area as Area,
+    bandLow: d.bandLow,
+    bandHigh: d.bandHigh,
+  }));
+  const hasDiversity = diversity.length > 0;
+  // 다양성 후보가 없으면 4개 모두 선택 영역에서 채운다.
+  const targetSelected = hasDiversity ? 2 : 4;
+  const targetDiversity = hasDiversity ? 2 : 0;
+
   const fallback = () =>
     res.json({
-      challenges: selectFallbackMissions({
-        area,
-        bandLow: body.bandLow,
-        bandHigh: body.bandHigh,
+      challenges: selectDiverseFallbackMissions({
+        selected,
+        diversity,
         forbidden: body.forbidden,
         condition: body.condition,
         interest: body.interest,
@@ -80,24 +106,41 @@ router.post("/challenges/generate", async (req, res) => {
       source: "fallback",
     });
 
-  const fewShot = buildFewShot({
+  const interestHint = buildInterestHint(body.interest, area);
+  const selectedFewShot = buildFewShot({
     area,
-    bandLow: body.bandLow,
-    bandHigh: body.bandHigh,
+    bandLow: selected.bandLow,
+    bandHigh: selected.bandHigh,
     forbidden: body.forbidden,
     condition: body.condition,
   });
-  const interestHint = buildInterestHint(body.interest, area);
+  const diversityBlock = hasDiversity
+    ? diversity
+        .map((d) => {
+          const fs = buildFewShot({
+            area: d.area,
+            bandLow: d.bandLow,
+            bandHigh: d.bandHigh,
+            forbidden: body.forbidden,
+            condition: body.condition,
+          });
+          return `▶ ${AREA_KO[d.area]} (area="${d.area}", L${d.bandLow}~${d.bandHigh})\n${fs}`;
+        })
+        .join("\n\n")
+    : "(다양성 후보 영역 없음 — 4개 모두 선택 영역에서 만든다)";
 
   const userPrompt = `회복단계: ${STAGE_KO[body.stage] ?? body.stage}
-미션영역: ${AREA_KO[area]}
-난이도밴드: L${body.bandLow} ~ L${body.bandHigh} (낮음·중간·높음 각 1개)
+선택 영역: ${AREA_KO[area]} (area="${area}", L${selected.bandLow}~${selected.bandHigh}) — 여기서 ${targetSelected}개
 금지조건: ${body.forbidden.length > 0 ? body.forbidden.join(", ") : "없음"}
 [온보딩 정보] 수면: ${body.sleep} / 외출부담: ${body.outing} / 대인접촉부담: ${body.contact}
 [오늘 설문] 컨디션: ${body.condition} / 희망영역: ${AREA_KO[area]} / 관심사: ${body.interest}
 [취향 반영 힌트] ${interestHint}
-[열린 카테고리 & 시드 — 그대로 쓰지 말고 변주할 것]
-${fewShot}`;
+
+[선택 영역 열린 카테고리 & 시드 — 그대로 쓰지 말고 변주할 것]
+${selectedFewShot}
+
+[다양성 후보 영역 — 컨디션·관심사에 맞게 ${targetDiversity}개, 각 영역 난이도 범위 준수]
+${diversityBlock}`;
 
   try {
     const timeout = new Promise<never>((_, reject) =>
@@ -128,50 +171,83 @@ ${fewShot}`;
       reflect_q?: string;
       reflectQ?: string;
     }>;
-    if (!Array.isArray(items) || items.length < 3) throw new Error("bad-shape");
+    if (!Array.isArray(items) || items.length < 4) throw new Error("bad-shape");
 
-    const clampLevel = (lv: unknown, idx: number) => {
-      const n = typeof lv === "number" ? Math.round(lv) : body.bandLow + idx;
-      return Math.min(
-        body.bandHigh,
-        Math.max(body.bandLow, Math.min(5, Math.max(1, n))),
-      );
+    // 허용 영역별 난이도 범위(선택 + 다양성 후보). 각 미션은 자기 영역 범위로만 클램프.
+    const allowed = new Map<Area, { low: number; high: number }>();
+    allowed.set(selected.area, { low: selected.bandLow, high: selected.bandHigh });
+    for (const d of diversity) {
+      allowed.set(d.area, { low: d.bandLow, high: d.bandHigh });
+    }
+
+    const clampToBand = (lv: unknown, low: number, high: number, fb: number) => {
+      const n = typeof lv === "number" ? Math.round(lv) : fb;
+      return Math.min(high, Math.max(low, Math.min(5, Math.max(1, n))));
     };
 
-    const avoidTitles = new Set<string>();
-    const challenges = items.slice(0, 3).map((it, idx) => {
+    const usedTitles = new Set<string>();
+    const selectedOut: GeneratedMission[] = [];
+    const diversityOut: GeneratedMission[] = [];
+    // 다양성 후보가 2개 이상이면 서로 다른 두 영역에서 1개씩(폴백 규칙과 동일).
+    // 후보가 1개면 그 영역에서 targetDiversity개까지 허용.
+    const diversityPerAreaCap = diversity.length >= 2 ? 1 : targetDiversity;
+    const diversityAreaCounts = new Map<Area, number>();
+
+    for (const it of items) {
       const title = typeof it.title === "string" ? it.title.trim() : "";
+      if (!title) continue;
+      const aRaw = it.area;
+      if (typeof aRaw !== "string" || !allowed.has(aRaw as Area)) continue;
+      const a = aRaw as Area;
+      const isSelected = a === selected.area;
+      const bucket = isSelected ? selectedOut : diversityOut;
+      const cap = isSelected ? targetSelected : targetDiversity;
+      if (bucket.length >= cap) continue;
+      if (!isSelected && (diversityAreaCounts.get(a) ?? 0) >= diversityPerAreaCap)
+        continue; // 다양성 영역 편중 방지
+
+      const band = allowed.get(a)!;
+      const level = clampToBand(it.level, band.low, band.high, band.low + bucket.length);
       const reflectQ =
         (typeof it.reflect_q === "string" && it.reflect_q.trim()) ||
         (typeof it.reflectQ === "string" && it.reflectQ.trim()) ||
         "오늘 해보니 어땠어요?";
-      if (!title) throw new Error("missing-title");
-      const level = clampLevel(it.level, idx);
       const minutes =
         typeof it.minutes === "number" && it.minutes > 0
           ? Math.min(30, Math.round(it.minutes))
           : defaultMinutesForLevel(level);
 
-      let mission = { area, level, title, minutes, reflectQ };
-      // 한 활동 가드: 병렬 활동 감지 시 폴백 시드로 교체
+      let mission: GeneratedMission = { area: a, level, title, minutes, reflectQ };
+      // 한 활동 가드: 병렬 활동 감지 시 해당 영역의 검증 시드로 교체
       if (hasParallelActivities(title)) {
         mission = repairMission(mission, {
-          area,
-          bandLow: body.bandLow,
-          bandHigh: body.bandHigh,
+          area: a,
+          bandLow: band.low,
+          bandHigh: band.high,
           forbidden: body.forbidden,
           condition: body.condition,
           interest: body.interest,
-          avoidTitles,
+          avoidTitles: usedTitles,
         });
       }
-      avoidTitles.add(mission.title);
-      return mission;
-    });
+      if (usedTitles.has(mission.title)) continue; // 제목 중복 제거
+      usedTitles.add(mission.title);
+      bucket.push(mission);
+      if (!isSelected)
+        diversityAreaCounts.set(a, (diversityAreaCounts.get(a) ?? 0) + 1);
+    }
 
-    challenges.sort((a, b) => a.level - b.level);
+    // 구성(선택 N + 다양성 M)이 안 채워지면 폴백 뱅크(검증 시드)로 안전하게 대체
+    if (
+      selectedOut.length < targetSelected ||
+      diversityOut.length < targetDiversity
+    ) {
+      throw new Error("incomplete-composition");
+    }
 
-    // 최종 검증: 수리 후에도 한 활동 원칙 위반이 남아 있으면 전체를 폴백 세트(검증된 시드)로 대체
+    const challenges = [...selectedOut, ...diversityOut];
+
+    // 최종 검증: 수리 후에도 한 활동 원칙 위반이 남아 있으면 전체를 폴백 세트로 대체
     if (challenges.some((c) => hasParallelActivities(c.title))) {
       throw new Error("parallel-activity-after-repair");
     }

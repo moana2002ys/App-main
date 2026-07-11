@@ -94,6 +94,34 @@ export function capBandForArea(stage: Stage, area: Area, low: number, high: numb
   return { low, high };
 }
 
+// 영역 게이트: 금지조건에 걸리는 영역은 후보에서 제외한다(determineTodayArea와 동일 규칙, 단일 출처).
+// - 사회진입(social): 외출이 금지조건이면 제외
+// - 관계(relationship): 모든 접촉이 부담(관계대면 금지)이면 제외
+export function isAreaEligible(area: Area, forbidden: string[]): boolean {
+  if (area === AREAS.social && forbidden.includes('외출')) return false;
+  if (area === AREAS.relationship && forbidden.includes('관계대면')) return false;
+  return true;
+}
+
+// 다양성 후보 영역 산출: 선택 영역을 제외한 나머지 영역 중 게이트를 통과하는 영역만,
+// 각 영역의 (컨디션 반영·단계 캡 적용) 난이도 밴드와 함께 돌려준다.
+// low/high는 이미 오늘 컨디션 조정이 반영된 밴드를 넘긴다(선택 영역 캡 적용 전 값).
+export function getDiversityAreas(
+  stage: Stage,
+  selectedArea: Area,
+  forbidden: string[],
+  low: number,
+  high: number,
+): { area: Area; bandLow: number; bandHigh: number }[] {
+  const allAreas: Area[] = [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social];
+  return allAreas
+    .filter((a) => a !== selectedArea && isAreaEligible(a, forbidden))
+    .map((a) => {
+      const capped = capBandForArea(stage, a, low, high);
+      return { area: a, bandLow: capped.low, bandHigh: capped.high };
+    });
+}
+
 export function adjustBandNextDay(
   currentBandLow: number, 
   currentBandHigh: number,

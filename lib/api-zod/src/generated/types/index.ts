@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './areaBand';
+export * from './areaBandArea';
 export * from './authUser';
 export * from './authUserState';
 export * from './challenge';
