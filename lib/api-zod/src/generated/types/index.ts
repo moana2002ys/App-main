@@ -19,3 +19,6 @@ export * from './credentials';
 export * from './healthStatus';
 export * from './stateSaveRequest';
 export * from './stateSaveRequestState';
+export * from './verifyPhotoRequest';
+export * from './verifyPhotoResponse';
+export * from './verifyPhotoResponseSource';

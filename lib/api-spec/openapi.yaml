@@ -119,6 +119,30 @@ paths:
                 $ref: "#/components/schemas/ChallengeSet"
         "400":
           description: Invalid request
+  /challenges/verify-photo:
+    post:
+      operationId: verifyChallengePhoto
+      tags: [challenges]
+      summary: Verify a challenge with a photo and get a praise message
+      description: >
+        Accepts a downscaled photo (data URL) plus the challenge context. A vision model
+        looks at the photo generously and returns a warm, personalized praise message.
+        Verification never fails punitively — the photo is analyzed and discarded, never stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPhotoRequest"
+      responses:
+        "200":
+          description: Praise message for the completed challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyPhotoResponse"
+        "400":
+          description: Invalid request
   /healthz:
     get:
       operationId: healthCheck
@@ -230,6 +254,30 @@ components:
         reflectQ:
           type: string
           description: One-line reflection question shown after completion
+    VerifyPhotoRequest:
+      type: object
+      required: [imageDataUrl, title]
+      properties:
+        imageDataUrl:
+          type: string
+          description: Downscaled photo as a base64 data URL (image/jpeg)
+        title:
+          type: string
+          description: The challenge phrase being verified
+        nickname:
+          type: string
+          description: User nickname for a personalized praise message
+    VerifyPhotoResponse:
+      type: object
+      required: [praise, source]
+      properties:
+        praise:
+          type: string
+          description: Warm one-or-two sentence praise message referencing the photo
+        source:
+          type: string
+          enum: [llm, fallback]
+          description: Whether the praise came from the vision model or the fallback list
     ChallengeSet:
       type: object
       required: [challenges, source]

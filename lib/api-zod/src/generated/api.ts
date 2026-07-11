@@ -101,6 +101,22 @@ export const GenerateChallengesResponse = zod.object({
 
 
 /**
+ * Accepts a downscaled photo (data URL) plus the challenge context. A vision model looks at the photo generously and returns a warm, personalized praise message. Verification never fails punitively — the photo is analyzed and discarded, never stored.
+ * @summary Verify a challenge with a photo and get a praise message
+ */
+export const VerifyChallengePhotoBody = zod.object({
+  "imageDataUrl": zod.string().describe('Downscaled photo as a base64 data URL (image\/jpeg)'),
+  "title": zod.string().describe('The challenge phrase being verified'),
+  "nickname": zod.string().optional().describe('User nickname for a personalized praise message')
+})
+
+export const VerifyChallengePhotoResponse = zod.object({
+  "praise": zod.string().describe('Warm one-or-two sentence praise message referencing the photo'),
+  "source": zod.enum(['llm', 'fallback']).describe('Whether the praise came from the vision model or the fallback list')
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

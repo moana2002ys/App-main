@@ -1,18 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut } from "lucide-react";
-import { useGenerateChallenges } from "@workspace/api-client-react";
+import { LogOut, Camera } from "lucide-react";
+import { useGenerateChallenges, useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { determineTodayArea, capBandForArea, Area, AREAS } from "@/lib/classifier";
 import { getFallbackChallenges } from "@/lib/fallback-bank";
 import { Challenge } from "@workspace/api-client-react";
+import { fileToDataUrl } from "@/lib/image";
+
+const COMPLETION_PRAISES = [
+  "오늘 이만큼 해낸 것, 정말 멋져요.",
+  "작은 한 걸음이 모여 큰 변화가 돼요. 잘했어요.",
+  "천천히, 그리고 확실하게 해냈네요. 대단해요.",
+  "오늘 하루에 이 순간을 만들어낸 게 참 좋아요.",
+  "스스로 해낸 오늘의 조각, 참 소중해요.",
+];
+
+function pickPraise(nickname?: string) {
+  const base = COMPLETION_PRAISES[Math.floor(Math.random() * COMPLETION_PRAISES.length)];
+  return nickname ? `${nickname}님, ${base}` : base;
+}
 
 export function Home() {
   const { user, updateUser, setView, nextDay, signOut } = useAppStore();
   const generateMut = useGenerateChallenges();
+  const verifyMut = useVerifyChallengePhoto();
   const [loading, setLoading] = useState(!user.todayChallenges && !user.acceptedChallenge);
+  const [verifying, setVerifying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (user.todayChallenges || user.acceptedChallenge || !user.stage || !user.onboarding || !user.daily) {
@@ -75,6 +92,30 @@ export function Home() {
   };
 
   const navToReflection = () => {
+    updateUser({ pendingPraise: pickPraise(user.nickname || undefined) });
+    setView("reflection");
+  };
+
+  const onPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !user.acceptedChallenge) return;
+    setVerifying(true);
+    try {
+      const imageDataUrl = await fileToDataUrl(file);
+      const res = await verifyMut.mutateAsync({
+        data: {
+          imageDataUrl,
+          title: user.acceptedChallenge.title,
+          nickname: user.nickname || undefined,
+        },
+      });
+      updateUser({ pendingPraise: res.praise });
+    } catch {
+      // 분석이 안 되어도 완료는 그대로 인정 (실패 처벌 없음)
+      updateUser({ pendingPraise: pickPraise(user.nickname || undefined) });
+    }
+    setVerifying(false);
     setView("reflection");
   };
 
@@ -137,9 +178,42 @@ export function Home() {
               </p>
             </motion.div>
 
-            <Button size="lg" className="w-full rounded-2xl h-14 text-lg shadow-md" onClick={navToReflection}>
-              완료했어요
-            </Button>
+            {verifying ? (
+              <div className="w-full flex flex-col items-center space-y-4 py-2">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full"
+                />
+                <p className="text-muted-foreground text-sm animate-pulse">사진을 살펴보고 있어요...</p>
+              </div>
+            ) : (
+              <div className="w-full space-y-3">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full rounded-2xl h-14 text-lg border-primary/40 text-primary hover:bg-primary hover:text-white transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Camera className="w-5 h-5 mr-2" />
+                  사진으로 인증하기
+                </Button>
+                <Button size="lg" className="w-full rounded-2xl h-14 text-lg shadow-md" onClick={navToReflection}>
+                  완료했어요
+                </Button>
+                <p className="text-xs text-muted-foreground text-center pt-1">
+                  사진은 확인 후 바로 사라져요. 저장되지 않아요.
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPhotoSelected}
+                  aria-label="인증 사진 선택"
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6">

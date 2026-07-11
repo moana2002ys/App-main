@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { GenerateChallengesBody } from "@workspace/api-zod";
+import { GenerateChallengesBody, VerifyChallengePhotoBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   type Area,
@@ -175,6 +175,90 @@ ${fewShot}`;
   } catch (err) {
     req.log.warn({ err }, "challenge generation fell back to bank");
     fallback();
+  }
+});
+
+const FALLBACK_PRAISES = [
+  "오늘 이만큼 해낸 것, 정말 멋져요.",
+  "작은 한 걸음이 모여 큰 변화가 돼요. 잘했어요.",
+  "사진까지 남겨줘서 고마워요. 오늘의 조각, 잘 채웠어요.",
+  "천천히, 그리고 확실하게 해냈네요. 대단해요.",
+  "오늘 하루에 이 순간을 만들어낸 게 참 좋아요.",
+];
+
+const pickFallbackPraise = (nickname?: string) => {
+  const base = FALLBACK_PRAISES[Math.floor(Math.random() * FALLBACK_PRAISES.length)];
+  return nickname ? `${nickname}님, ${base}` : base;
+};
+
+const PHOTO_SYSTEM_PROMPT = `당신은 회복 중인 청년을 따뜻하게 응원하는 동반자입니다. 사용자가 오늘의 작은 미션을 마치고 인증 사진을 올렸습니다.
+
+[역할]
+- 사진을 너그럽게 보고, 사진에서 보이는 것을 한 가지 짚으며 따뜻한 칭찬 한두 문장을 만듭니다.
+- 사진이 미션과 직접 관련이 없어 보여도 절대 지적하거나 실패로 취급하지 않습니다. 사진을 올린 용기와 오늘의 시도 자체를 칭찬하세요.
+
+[규칙 — 반드시 준수]
+- 고립/은둔/환자 같은 규정 언어, 난이도 숫자, 평가·비교·재촉 표현("~해야 한다", "꼭", "매일") 금지.
+- 지시나 조언 없이 담백하고 따뜻하게. 존댓말. 1~2문장, 60자 이내.
+- 출력은 칭찬 문장만. 따옴표나 다른 텍스트 없이.`;
+
+router.post("/challenges/verify-photo", async (req, res) => {
+  const parsed = VerifyChallengePhotoBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "잘못된 요청이에요." });
+    return;
+  }
+  const { imageDataUrl, title, nickname } = parsed.data;
+
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(imageDataUrl)) {
+    res.status(400).json({ error: "지원하지 않는 이미지 형식이에요." });
+    return;
+  }
+  // 클라이언트는 최대 1024px JPEG로 축소해 보냄 — 그보다 훨씬 큰 페이로드는 거부
+  if (imageDataUrl.length > 4_000_000) {
+    res.status(400).json({ error: "사진이 너무 커요. 다시 시도해 주세요." });
+    return;
+  }
+
+  try {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("llm-timeout")), 12000),
+    );
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-5.4-mini",
+        max_completion_tokens: 1024,
+        messages: [
+          { role: "system", content: PHOTO_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `오늘의 미션: ${title}${nickname ? `\n닉네임: ${nickname}` : ""}\n이 인증 사진을 보고 따뜻한 칭찬 한두 문장을 만들어 주세요.`,
+              },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+      }),
+      timeout,
+    ]);
+
+    const praise = (completion.choices[0]?.message?.content ?? "").trim();
+    if (!praise) throw new Error("empty-praise");
+
+    // 결정적 가드: 규정 언어·난이도 표기·연속(스트릭) 프레이밍이 섞이면 폴백 사용
+    if (/고립|은둔|환자/.test(praise)) throw new Error("stigma-language");
+    if (/난이도|레벨|L[1-5]\b|[1-5]\s*단계/.test(praise)) throw new Error("difficulty-language");
+    if (/연속|매일|\d+\s*일째|스트릭|streak/i.test(praise)) throw new Error("streak-language");
+
+    res.json({ praise: praise.slice(0, 200), source: "llm" });
+  } catch (err) {
+    // 프라이버시: 오류 객체에 요청 페이로드(사진 데이터)가 섞일 수 있어 메시지만 기록
+    const reason = err instanceof Error ? err.message : "unknown";
+    req.log.warn({ reason }, "photo praise fell back to preset list");
+    res.json({ praise: pickFallbackPraise(nickname), source: "fallback" });
   }
 });
 

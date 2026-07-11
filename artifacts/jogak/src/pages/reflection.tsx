@@ -46,7 +46,8 @@ export function Reflection() {
       totalCompletions: user.totalCompletions + 1,
       streakDays: user.streakDays + 1,
       items: newItems,
-      consecutiveSkips: 0
+      consecutiveSkips: 0,
+      pendingPraise: undefined
     });
 
     setView("growth");
@@ -74,7 +75,9 @@ export function Reflection() {
               className="space-y-8 text-center"
             >
               <div className="space-y-2">
-                <h2 className="text-2xl font-medium text-foreground">수고했어요!</h2>
+                <h2 className="text-2xl font-medium text-foreground leading-snug">
+                  {user.pendingPraise || "수고했어요!"}
+                </h2>
                 <p className="text-muted-foreground">방금 한 건 어땠나요?</p>
               </div>
 

@@ -38,6 +38,7 @@ export interface UserState {
   consecutiveSkips: number;
   forceLowBurdenArea: boolean;
   lastMessage?: string;
+  pendingPraise?: string;
 }
 
 interface AppContextType {

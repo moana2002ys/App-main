@@ -117,6 +117,33 @@ export interface Challenge {
   reflectQ: string;
 }
 
+export interface VerifyPhotoRequest {
+  /** Downscaled photo as a base64 data URL (image/jpeg) */
+  imageDataUrl: string;
+  /** The challenge phrase being verified */
+  title: string;
+  /** User nickname for a personalized praise message */
+  nickname?: string;
+}
+
+/**
+ * Whether the praise came from the vision model or the fallback list
+ */
+export type VerifyPhotoResponseSource = typeof VerifyPhotoResponseSource[keyof typeof VerifyPhotoResponseSource];
+
+
+export const VerifyPhotoResponseSource = {
+  llm: 'llm',
+  fallback: 'fallback',
+} as const;
+
+export interface VerifyPhotoResponse {
+  /** Warm one-or-two sentence praise message referencing the photo */
+  praise: string;
+  /** Whether the praise came from the vision model or the fallback list */
+  source: VerifyPhotoResponseSource;
+}
+
 /**
  * Whether challenges came from the LLM or the fallback bank
  */

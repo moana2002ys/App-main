@@ -25,7 +25,9 @@ import type {
   ChallengeSet,
   Credentials,
   HealthStatus,
-  StateSaveRequest
+  StateSaveRequest,
+  VerifyPhotoRequest,
+  VerifyPhotoResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -486,6 +488,78 @@ export const useGenerateChallenges = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getGenerateChallengesMutationOptions(options));
+    }
+
+export const getVerifyChallengePhotoUrl = () => {
+
+
+
+
+  return `/api/challenges/verify-photo`
+}
+
+/**
+ * Accepts a downscaled photo (data URL) plus the challenge context. A vision model looks at the photo generously and returns a warm, personalized praise message. Verification never fails punitively — the photo is analyzed and discarded, never stored.
+ * @summary Verify a challenge with a photo and get a praise message
+ */
+export const verifyChallengePhoto = async (verifyPhotoRequest: VerifyPhotoRequest, options?: RequestInit): Promise<VerifyPhotoResponse> => {
+
+  return customFetch<VerifyPhotoResponse>(getVerifyChallengePhotoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifyPhotoRequest)
+  }
+);}
+
+
+
+
+
+export const getVerifyChallengePhotoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyChallengePhoto>>, TError,{data: BodyType<VerifyPhotoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyChallengePhoto>>, TError,{data: BodyType<VerifyPhotoRequest>}, TContext> => {
+
+const mutationKey = ['verifyChallengePhoto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyChallengePhoto>>, {data: BodyType<VerifyPhotoRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyChallengePhoto(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyChallengePhotoMutationResult = NonNullable<Awaited<ReturnType<typeof verifyChallengePhoto>>>
+    export type VerifyChallengePhotoMutationBody = BodyType<VerifyPhotoRequest>
+    export type VerifyChallengePhotoMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify a challenge with a photo and get a praise message
+ */
+export const useVerifyChallengePhoto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyChallengePhoto>>, TError,{data: BodyType<VerifyPhotoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyChallengePhoto>>,
+        TError,
+        {data: BodyType<VerifyPhotoRequest>},
+        TContext
+      > => {
+      return useMutation(getVerifyChallengePhotoMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {
