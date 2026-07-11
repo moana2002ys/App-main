@@ -6,6 +6,7 @@ import {
   buildFewShot,
   buildInterestHint,
   defaultMinutesForLevel,
+  enforceComposition,
   hasParallelActivities,
   repairMission,
   selectFallbackMissions,
@@ -175,7 +176,17 @@ ${fewShot}`;
       throw new Error("parallel-activity-after-repair");
     }
 
-    res.json({ challenges, source: "llm" });
+    // 구성 규칙 결정 적용: 취향 반영 정확히 2개 + 일반 1개, 사진 인증 가능 1개 이상.
+    const balanced = enforceComposition(challenges, {
+      area,
+      bandLow: body.bandLow,
+      bandHigh: body.bandHigh,
+      forbidden: body.forbidden,
+      condition: body.condition,
+      interest: body.interest,
+    });
+
+    res.json({ challenges: balanced, source: "llm" });
   } catch (err) {
     req.log.warn({ err }, "challenge generation fell back to bank");
     fallback();

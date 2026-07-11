@@ -88,19 +88,19 @@ const PARALLEL_PATTERNS: RegExp[] = [
   /랑 같이/,
   /와 같이/,
   // '~하고 …' 연결형(두 활동): "정리하고 물 마시기", "산책도 하고 달리기". '하고 싶'(희망)은 제외.
-  /하고\s(?!싶)/,
+  /하고,?\s(?!싶)/,
   // ~고 연결형(동사어간+고 뒤에 또 다른 활동): 두 활동 병렬.
   // 명사(냉장고·창고·광고 등) 오탐을 막기 위해 흔한 동사 어간만 화이트리스트로 검출한다.
   // '~고 싶'(희망 보조용언, 예: "먹고 싶은 것 검색")은 단일 활동이므로 제외.
-  /(열|닫|켜|끄|씻|접|펴|걷|앉|눕|쓰|읽|듣|먹|찾|놓|넣|들|잡|깎|빗|털|썰|갈|담|두|비우|맞추|정하|고르|만들|마시|나가|다녀|눌러|채우)고\s(?!싶)/,
+  /(열|닫|켜|끄|씻|접|펴|걷|앉|눕|쓰|읽|듣|먹|찾|놓|넣|들|잡|깎|빗|털|썰|갈|담|두|적|비우|맞추|정하|고르|만들|마시|나가|다녀|눌러|채우)고,?\s(?!싶)/,
   // 기호 연결자: 'A + B' (두 활동을 더하는 형태)
   /[가-힣)]\s*\+\s*[가-힣]/,
-  // '~ㄴ 채(로)' 동시 진행형: "음악을 틀어둔 채 걷기" (두 활동 겹침).
-  // '채소' 등 명사 오탐 방지를 위해 '채' 뒤가 공백/문장끝/(로)일 때만 검출.
-  /(둔|든|킨|켠|연|은|는|던|한)\s?채(로)?(\s|$)/,
+  // '~ㄴ 채(로)' 동시 진행형: "음악을 틀어둔 채 걷기", "틀어둔 채, 스트레칭" (두 활동 겹침).
+  // '채소' 등 명사 오탐 방지를 위해 '채' 뒤가 공백/쉼표/문장끝/(로)일 때만 검출.
+  /(둔|든|킨|켠|연|은|는|던|한)\s?채(로)?([\s,.!?…]|$)/,
   // '~ㄴ 뒤/후 …' 순차 연결형: "물을 마신 뒤 점 찍기" (두 활동 연쇄).
   // 위치 명사('책상 뒤') 오탐을 막기 위해 동사 관형형 어미 뒤 + 이어지는 활동이 있을 때만.
-  /(둔|든|킨|켠|연|은|는|던|한|신)\s?(뒤|후)(에)?\s(?=[가-힣])/,
+  /(둔|든|킨|켠|연|은|는|던|한|신)\s?(뒤|후)(에)?,?\s(?=[가-힣])/,
 ];
 
 // 가운뎃점(·)은 대개 명사 나열(단일 활동)이지만, 'A·B하기'처럼 두 행위가 하나의
@@ -115,6 +115,171 @@ export function hasParallelActivities(title: string): boolean {
   if (!title) return false;
   if (hasDotDualAction(title)) return true;
   return PARALLEL_PATTERNS.some((re) => re.test(title));
+}
+
+// ── 구성 규칙 가드 (취향 2개 + 일반 1개, 사진 인증 가능 1개 이상) ──────
+// 취향(관심사)별 판별 토큰. 오탐을 줄이기 위해 고정 취향 목록에 맞춘 좁은 패턴만 사용.
+const INTEREST_TOKEN_PATTERNS: Record<string, RegExp> = {
+  게임: /게임|길드/,
+  음악: /음악|노래|플레이리스트|멜로디|곡/,
+  동물: /동물|반려|강아지|고양이/,
+  식물: /식물|화분|원예|식집사/,
+  "요리·먹는 것": /요리|맛집|레시피|음식|먹/,
+  "책·글": /책(?!상)|독서|글(?=\s|을|이|$)/,
+  스포츠: /스포츠|운동|경기(?!장)/,
+  "그림·만들기": /그림|그리기|그려|낙서|스케치|색칠|창작|포트폴리오/,
+};
+
+// 미션 제목이 해당 취향을 반영하는지(토큰 기반) 판별한다.
+export function reflectsInterest(
+  title: string,
+  interest: string | undefined,
+): boolean {
+  if (!title || !interest || interest.includes("모르")) return false;
+  const pattern = INTEREST_TOKEN_PATTERNS[interest];
+  return pattern ? pattern.test(title) : false;
+}
+
+// 사진 한 장으로 결과를 남길 수 있는 활동(눈에 보이는 결과물·장면)인지 판별한다.
+const PHOTO_VERIFIABLE_PATTERN =
+  /적기|적어|남기|메모|쓰기|써\s?보|기록|그리기|그려|낙서|스케치|색칠|정리|치우|만들|담아|채우|이불|책상|설거지|빨래|화분|물\s?주기|요리|한\s?(컵|잔)|창밖|풍경|하늘|산책/;
+
+export function isPhotoVerifiable(title: string): boolean {
+  return PHOTO_VERIFIABLE_PATTERN.test(title);
+}
+
+// LLM/폴백 결과에 구성 규칙을 결정적으로 적용한다.
+// - 취향이 있으면: 취향 반영 미션이 3개일 때 1개를 일반 시드로 교체(정확히 2개 유지),
+//   1개 이하일 때 취향 힌트로 1개 승격(베스트 에포트).
+// - 사진 인증 가능 미션이 없으면 1개를 사진 인증 가능한 시드로 교체.
+// 교체 시 레벨·분량은 유지하고, 한 활동 가드를 통과하는 시드만 쓴다.
+export function enforceComposition(
+  missions: GeneratedMission[],
+  params: {
+    area: Area;
+    bandLow: number;
+    bandHigh: number;
+    forbidden: string[];
+    condition: string;
+    interest?: string;
+  },
+): GeneratedMission[] {
+  const { interest } = params;
+  const hasInterest =
+    !!interest &&
+    !interest.includes("모르") &&
+    !!INTEREST_TOKEN_PATTERNS[interest];
+  const result = missions.map((m) => ({ ...m }));
+  const avoid = new Set(result.map((m) => m.title));
+  const eligible = getEligibleCategories(params);
+
+  const isInterest = (t: string) => hasInterest && reflectsInterest(t, interest);
+
+  const findSeed = (
+    level: number,
+    pred: (seed: string) => boolean,
+  ): { seed: string; cat: SeedCategory } | null => {
+    const cover = eligible.filter(
+      (c) => c.levels.min <= level && c.levels.max >= level,
+    );
+    // 레벨을 덮는 카테고리 우선, 없으면 전체 적격 카테고리까지 넓혀 찾는다.
+    for (const pool of cover.length > 0 ? [cover, eligible] : [eligible]) {
+      for (const cat of pool) {
+        for (const seed of cat.seeds) {
+          if (avoid.has(seed)) continue;
+          if (hasParallelActivities(seed)) continue;
+          if (!pred(seed)) continue;
+          return { seed, cat };
+        }
+      }
+    }
+    return null;
+  };
+
+  const replaceAt = (
+    idx: number,
+    found: { seed: string; cat: SeedCategory },
+  ) => {
+    avoid.add(found.seed);
+    result[idx] = {
+      ...result[idx]!,
+      title: found.seed,
+      reflectQ: found.cat.reflectQs[0] ?? result[idx]!.reflectQ,
+    };
+  };
+
+  if (hasInterest) {
+    const interestIdxs = result
+      .map((m, i) => (isInterest(m.title) ? i : -1))
+      .filter((i) => i >= 0);
+
+    if (interestIdxs.length === 3) {
+      // 3개 모두 취향 반영 → 1개를 일반으로. 사진 규칙이 깨지지 않을 슬롯을 고른다.
+      let replaceIdx = interestIdxs[interestIdxs.length - 1]!;
+      for (const i of interestIdxs) {
+        const othersHavePhoto = result.some(
+          (m, j) => j !== i && isPhotoVerifiable(m.title),
+        );
+        if (othersHavePhoto || !isPhotoVerifiable(result[i]!.title)) {
+          replaceIdx = i;
+          break;
+        }
+      }
+      const level = result[replaceIdx]!.level;
+      const found =
+        findSeed(level, (s) => !isInterest(s) && isPhotoVerifiable(s)) ??
+        findSeed(level, (s) => !isInterest(s));
+      if (found) replaceAt(replaceIdx, found);
+    } else if (interestIdxs.length < 2) {
+      // 취향 반영이 부족 → 취향 미션 후보(영역 힌트 → 범용 문구 순)로 일반 슬롯을 2개가 될 때까지 승격.
+      const candidates = [
+        INTEREST_HINTS[interest]?.[params.area],
+        `좋아하는 ${interest} 떠올려 한 줄 적기`,
+      ].filter(
+        (t): t is string =>
+          !!t && !avoid.has(t) && !hasParallelActivities(t) && isInterest(t),
+      );
+      let need = 2 - interestIdxs.length;
+      for (const candidate of candidates) {
+        if (need <= 0) break;
+        const genericIdxs = result
+          .map((m, i) => (isInterest(m.title) ? -1 : i))
+          .filter((i) => i >= 0);
+        if (genericIdxs.length <= 1) break; // 일반 슬롯 1개는 남긴다.
+        // 유일한 사진 인증 가능 슬롯은 피한다(후보가 사진 인증 가능하면 무관).
+        const safeIdx = genericIdxs.find(
+          (i) =>
+            isPhotoVerifiable(candidate) ||
+            !isPhotoVerifiable(result[i]!.title) ||
+            result.some((m, j) => j !== i && isPhotoVerifiable(m.title)),
+        );
+        if (safeIdx !== undefined) {
+          avoid.add(candidate);
+          result[safeIdx] = { ...result[safeIdx]!, title: candidate };
+          need -= 1;
+        }
+      }
+    }
+  }
+
+  if (!result.some((m) => isPhotoVerifiable(m.title))) {
+    // 사진 인증 가능 미션이 없음 → 일반 슬롯 우선으로 1개 교체(취향 2개 유지).
+    const genericIdxs = result
+      .map((m, i) => (isInterest(m.title) ? -1 : i))
+      .filter((i) => i >= 0);
+    const idx =
+      genericIdxs.length > 0 ? genericIdxs[genericIdxs.length - 1]! : result.length - 1;
+    const wantInterest = isInterest(result[idx]!.title);
+    const found =
+      findSeed(
+        result[idx]!.level,
+        (s) => isPhotoVerifiable(s) && isInterest(s) === wantInterest,
+      ) ??
+      findSeed(result[idx]!.level, (s) => isPhotoVerifiable(s) && !isInterest(s));
+    if (found) replaceAt(idx, found);
+  }
+
+  return result;
 }
 
 function pickByRotation<T>(arr: T[], offset: number): T {
@@ -211,7 +376,15 @@ export function selectFallbackMissions(params: {
   });
 
   missions.sort((a, b) => a.level - b.level);
-  return missions;
+  // 구성 규칙(취향 2+일반 1, 사진 인증 가능 1+)을 폴백에도 동일 적용.
+  return enforceComposition(missions, {
+    area,
+    bandLow: lo,
+    bandHigh: hi,
+    forbidden,
+    condition,
+    interest,
+  });
 }
 
 // LLM이 위반한(병렬 활동) 미션을 폴백 시드로 교체한다.

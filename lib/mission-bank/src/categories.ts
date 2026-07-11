@@ -407,7 +407,7 @@ export const CATEGORIES_BY_AREA: Record<Area, SeedCategory[]> = {
 // 취향(관심사) → 각 영역에서 녹이는 법 (변주축 A)
 export const INTEREST_HINTS: Record<string, Partial<Record<Area, string>>> = {
   게임: {
-    rhythm: "잘 시각 정하기(밤샘 방지)",
+    rhythm: "게임 마치는 시각 정하기(밤샘 방지)",
     selfcare: "게임 후 가벼운 스트레칭",
     relationship: "길드·커뮤니티 글 읽기",
     social: "게임 관련 직무 구경",
@@ -419,9 +419,10 @@ export const INTEREST_HINTS: Record<string, Partial<Record<Area, string>>> = {
     social: "음악 관련 활동 탐색",
   },
   동물: {
+    rhythm: "아침에 좋아하는 동물 사진 1장 보기",
     selfcare: "동물 영상 보기",
     relationship: "반려동물 커뮤니티 글 보기",
-    social: "관련 봉사·일 탐색",
+    social: "동물 관련 봉사·일 탐색",
   },
   식물: {
     rhythm: "창가 화분에 빛 쬐어주기",
@@ -433,21 +434,22 @@ export const INTEREST_HINTS: Record<string, Partial<Record<Area, string>>> = {
     rhythm: "5분 요리 한 끼",
     selfcare: "먹고 싶은 것 검색",
     relationship: "맛집 글 읽기",
-    social: "관련 알바·일 탐색",
+    social: "요리 관련 알바·일 탐색",
   },
   "책·글": {
-    rhythm: "자기 전 한 쪽 읽기",
+    rhythm: "자기 전 책 한 쪽 읽기",
     selfcare: "좋아하는 글 한 편",
     relationship: "독서 커뮤니티 글 보기",
-    social: "관심 주제 학습",
+    social: "관심 주제 글 한 편 읽기",
   },
   스포츠: {
-    rhythm: "아침 스트레칭",
-    selfcare: "동작 하나 따라하기",
+    rhythm: "아침에 가벼운 운동 동작 하나",
+    selfcare: "운동 동작 하나 따라하기",
     relationship: "팀·경기 커뮤니티 글 보기",
-    social: "관련 활동 탐색",
+    social: "스포츠 관련 활동 탐색",
   },
   "그림·만들기": {
+    rhythm: "자기 전 오늘 기분을 낙서 한 점으로 남기기",
     selfcare: "기분을 색·낙서로 표현",
     relationship: "창작 커뮤니티 글 보기",
     social: "포트폴리오 한 조각",
