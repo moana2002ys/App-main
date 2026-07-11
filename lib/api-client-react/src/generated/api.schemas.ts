@@ -5,6 +5,32 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface Credentials {
+  email: string;
+  password: string;
+}
+
+/**
+ * Saved app state snapshot (null if none saved yet)
+ */
+export type AuthUserState = { [key: string]: unknown } | null;
+
+export interface AuthUser {
+  email: string;
+  /** Saved app state snapshot (null if none saved yet) */
+  state?: AuthUserState;
+}
+
+/**
+ * Full app state snapshot to persist
+ */
+export type StateSaveRequestState = { [key: string]: unknown };
+
+export interface StateSaveRequest {
+  /** Full app state snapshot to persist */
+  state: StateSaveRequestState;
+}
+
 export interface HealthStatus {
   status: string;
 }

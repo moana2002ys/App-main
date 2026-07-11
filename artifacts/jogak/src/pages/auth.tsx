@@ -3,24 +3,19 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-
-// 데모용 인메모리 계정 저장소 (새로고침 시 초기화)
-const accounts = new Map<string, string>();
+import { signup, login, ApiError } from "@workspace/api-client-react";
 
 export function Auth() {
-  const { updateUser, setView } = useAppStore();
+  const { enterFromServer } = useAppStore();
   const [mode, setMode] = useState<'login' | 'signup'>('signup');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const finish = (userEmail: string) => {
-    updateUser({ email: userEmail });
-    setView("onboarding");
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
     setError(null);
     const trimmed = email.trim();
 
@@ -32,25 +27,22 @@ export function Auth() {
       setError("비밀번호는 4자 이상이면 돼요.");
       return;
     }
+    if (mode === 'signup' && password !== confirm) {
+      setError("비밀번호가 서로 달라요. 다시 확인해 주세요.");
+      return;
+    }
 
-    if (mode === 'signup') {
-      if (password !== confirm) {
-        setError("비밀번호가 서로 달라요. 다시 확인해 주세요.");
-        return;
-      }
-      if (accounts.has(trimmed)) {
-        setError("이미 가입된 이메일이에요. 로그인해 볼까요?");
-        return;
-      }
-      accounts.set(trimmed, password);
-      finish(trimmed);
-    } else {
-      const saved = accounts.get(trimmed);
-      if (!saved || saved !== password) {
-        setError("이메일 또는 비밀번호가 맞지 않아요.");
-        return;
-      }
-      finish(trimmed);
+    setSubmitting(true);
+    try {
+      const result = mode === 'signup'
+        ? await signup({ email: trimmed, password })
+        : await login({ email: trimmed, password });
+      enterFromServer(result.email, result.state);
+    } catch (err) {
+      const data = err instanceof ApiError ? (err.data as { message?: string } | null) : null;
+      setError(data?.message ?? "잠시 문제가 생겼어요. 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -131,13 +123,13 @@ export function Auth() {
             </motion.p>
           )}
 
-          <Button size="lg" className="w-full rounded-2xl h-14" onClick={handleSubmit}>
-            {mode === 'signup' ? '가입하고 시작하기' : '로그인'}
+          <Button size="lg" className="w-full rounded-2xl h-14" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? '잠시만요...' : mode === 'signup' ? '가입하고 시작하기' : '로그인'}
           </Button>
         </div>
 
         <p className="text-xs text-muted-foreground text-center">
-          데모 버전이라 새로고침하면 계정이 초기화돼요.
+          진행 상황은 계정에 안전하게 저장돼요.
         </p>
       </div>
     </div>

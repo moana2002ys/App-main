@@ -3,6 +3,7 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft } from "lucide-react";
 import { determineStage, OnboardingAnswers } from "@/lib/classifier";
 
 const QUESTIONS = [
@@ -73,6 +74,17 @@ export function Onboarding() {
 
   return (
     <div className="flex flex-col h-full bg-background p-6">
+      <div className="h-10 flex items-center">
+        {step > 0 && (
+          <button
+            onClick={() => setStep(step - 1)}
+            aria-label="뒤로 가기"
+            className="p-2 -ml-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        )}
+      </div>
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
         <AnimatePresence mode="wait">
           {step === 0 ? (

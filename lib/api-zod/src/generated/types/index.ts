@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './authUser';
+export * from './authUserState';
 export * from './challenge';
 export * from './challengeArea';
 export * from './challengeRequest';
@@ -13,4 +15,7 @@ export * from './challengeRequestArea';
 export * from './challengeRequestStage';
 export * from './challengeSet';
 export * from './challengeSetSource';
+export * from './credentials';
 export * from './healthStatus';
+export * from './stateSaveRequest';
+export * from './stateSaveRequestState';

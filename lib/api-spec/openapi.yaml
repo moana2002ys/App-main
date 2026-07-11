@@ -12,7 +12,89 @@ tags:
     description: Health operations
   - name: challenges
     description: Challenge generation
+  - name: auth
+    description: Authentication and user state persistence
 paths:
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create an account and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Account created and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Invalid input
+        "409":
+          description: Email already registered
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Wrong email or password
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Logged out
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the current logged-in user and saved app state
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not logged in
+  /state:
+    put:
+      operationId: saveState
+      tags: [auth]
+      summary: Save the user's app state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StateSaveRequest"
+      responses:
+        "204":
+          description: Saved
+        "401":
+          description: Not logged in
   /challenges/generate:
     post:
       operationId: generateChallenges
@@ -52,6 +134,33 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    AuthUser:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+        state:
+          type: object
+          description: Saved app state snapshot (null if none saved yet)
+          additionalProperties: true
+          nullable: true
+    StateSaveRequest:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: object
+          description: Full app state snapshot to persist
+          additionalProperties: true
     HealthStatus:
       type: object
       properties:

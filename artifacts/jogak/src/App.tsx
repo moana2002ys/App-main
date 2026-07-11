@@ -19,6 +19,11 @@ function MainFlow() {
 
   return (
     <PhoneFrame>
+      {view === 'loading' && (
+        <div className="flex h-full items-center justify-center bg-background">
+          <div className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full animate-spin" />
+        </div>
+      )}
       {view === 'auth' && <Auth />}
       {view === 'onboarding' && <Onboarding />}
       {view === 'daily_checkin' && <DailyCheckin />}

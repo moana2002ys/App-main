@@ -3,13 +3,14 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { LogOut } from "lucide-react";
 import { useGenerateChallenges } from "@workspace/api-client-react";
 import { determineTodayArea, capBandForArea, Area, AREAS } from "@/lib/classifier";
 import { getFallbackChallenges } from "@/lib/fallback-bank";
 import { Challenge } from "@workspace/api-client-react";
 
 export function Home() {
-  const { user, updateUser, setView, nextDay } = useAppStore();
+  const { user, updateUser, setView, nextDay, signOut } = useAppStore();
   const generateMut = useGenerateChallenges();
   const [loading, setLoading] = useState(!user.todayChallenges && !user.acceptedChallenge);
 
@@ -83,10 +84,20 @@ export function Home() {
         <div>
           <h2 className="text-sm font-medium text-muted-foreground">Day {user.dayCount} · {user.nickname || '조각이 친구'}님</h2>
         </div>
-        <button onClick={navToGrowth} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-border/50 hover:bg-secondary/50 transition-colors">
-          <Character size="sm" className="scale-[0.4] -mx-4" />
-          <span className="text-sm font-medium text-primary">{user.points} pt</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={navToGrowth} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-border/50 hover:bg-secondary/50 transition-colors">
+            <Character size="sm" className="scale-[0.4] -mx-4" />
+            <span className="text-sm font-medium text-primary">{user.points} pt</span>
+          </button>
+          <button
+            onClick={signOut}
+            aria-label="로그아웃"
+            title="로그아웃"
+            className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto pb-24">
