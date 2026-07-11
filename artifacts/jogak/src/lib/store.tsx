@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import { Area, Stage, OnboardingAnswers, DailyAnswers, adjustBandNextDay } from "./classifier";
 import { Challenge, getMe, saveState, logout as logoutApi } from "@workspace/api-client-react";
+import { GrowthEvent, emptyCounts } from "./rewards";
 
 export type ViewState =
   | 'loading'
@@ -28,8 +29,14 @@ export interface UserState {
   points: number;
   totalCompletions: number;
   streakDays: number;
-  items: string[];
-  
+
+  // 보상 상태 (누적·회수 없음) — 세부 카테고리별 누적 완료 카운트
+  categoryCounts: Record<string, number>;
+  badges: string[];
+  equippedItems: string[];
+  backgroundStage: number;
+  growthLog: GrowthEvent[];
+
   dayCount: number;
 
   todayChallenges: Challenge[] | null;
@@ -66,7 +73,11 @@ const defaultUser: UserState = {
   points: 0,
   totalCompletions: 0,
   streakDays: 0,
-  items: [],
+  categoryCounts: emptyCounts(),
+  badges: [],
+  equippedItems: [],
+  backgroundStage: 0,
+  growthLog: [],
   dayCount: 1,
   todayChallenges: null,
   acceptedChallenge: null,

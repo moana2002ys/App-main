@@ -4,13 +4,16 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { adjustBandNextDay } from "@/lib/classifier";
+import { applyCompletion, EarnedReward, ITEMS } from "@/lib/rewards";
+import { Character } from "@/components/Character";
 
 export function Reflection() {
   const { user, updateUser, setView } = useAppStore();
   const [step, setStep] = useState(0);
-  
+
   const [burden, setBurden] = useState<'😌'|'😐'|'😣'|null>(null);
   const [satisfaction, setSatisfaction] = useState<'👍'|'🤔'|'👎'|null>(null);
+  const [earned, setEarned] = useState<EarnedReward[]>([]);
 
   const challenge = user.acceptedChallenge;
 
@@ -28,29 +31,43 @@ export function Reflection() {
       0
     );
 
-    let newItems = [...user.items];
-    // Attach item based on challenge content heuristically
-    if (challenge.title.includes('산책') || challenge.title.includes('걷기') || challenge.title.includes('외출')) {
-      if (!newItems.includes('shoes')) newItems.push('shoes');
-    } else if (challenge.title.includes('음악') || challenge.title.includes('듣기')) {
-      if (!newItems.includes('headphone')) newItems.push('headphone');
-    } else if (challenge.title.includes('식물') || challenge.title.includes('화분')) {
-      if (!newItems.includes('plant')) newItems.push('plant');
-    }
+    const reward = applyCompletion(
+      {
+        categoryCounts: user.categoryCounts,
+        points: user.points,
+        totalCompletions: user.totalCompletions,
+        badges: user.badges,
+        equippedItems: user.equippedItems,
+        backgroundStage: user.backgroundStage,
+        growthLog: user.growthLog,
+        day: user.dayCount,
+        interest: user.daily?.interest,
+      },
+      challenge
+    );
 
     updateUser({
       currentBandLow: bandLow,
       currentBandHigh: bandHigh,
       lastMessage: message,
-      points: user.points + 10,
-      totalCompletions: user.totalCompletions + 1,
       streakDays: user.streakDays + 1,
-      items: newItems,
       consecutiveSkips: 0,
-      pendingPraise: undefined
+      categoryCounts: reward.categoryCounts,
+      points: reward.points,
+      totalCompletions: reward.totalCompletions,
+      badges: reward.badges,
+      equippedItems: reward.equippedItems,
+      backgroundStage: reward.backgroundStage,
+      growthLog: reward.growthLog,
+      pendingPraise: undefined,
     });
 
-    setView("growth");
+    if (reward.earned.length > 0) {
+      setEarned(reward.earned);
+      setStep(3); // 축하 화면
+    } else {
+      setView("growth");
+    }
   };
 
   return (
@@ -129,7 +146,7 @@ export function Reflection() {
                 </div>
               </div>
             </motion.div>
-          ) : (
+          ) : step === 2 ? (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}
@@ -139,7 +156,7 @@ export function Reflection() {
             >
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 text-center space-y-6">
                 <p className="text-lg font-medium text-foreground">{challenge.reflectQ}</p>
-                <textarea 
+                <textarea
                   className="w-full bg-secondary/30 rounded-2xl p-4 min-h-[120px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
                   placeholder="한 단어도 좋고, 적지 않아도 괜찮아요."
                 />
@@ -147,6 +164,57 @@ export function Reflection() {
                   기록 완료하기
                 </Button>
               </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="celebrate"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-8 text-center"
+            >
+              <div className="space-y-2">
+                <motion.p
+                  initial={{ y: 8, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-sm text-primary font-medium"
+                >
+                  꾸준히 해낸 당신에게
+                </motion.p>
+                <h2 className="text-2xl font-medium text-foreground">새로운 조각이 생겼어요</h2>
+              </div>
+
+              <div className="flex justify-center">
+                <Character size="lg" />
+              </div>
+
+              <div className="space-y-3">
+                {earned.map((e, i) => (
+                  <motion.div
+                    key={e.categoryId}
+                    initial={{ y: 16, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 + i * 0.12 }}
+                    className="bg-white p-5 rounded-3xl shadow-sm border border-border/50 flex items-center gap-4 text-left"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center text-2xl shrink-0">
+                      {ITEMS[e.itemId]?.emoji ?? "✨"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-foreground font-medium leading-snug">{e.badgeName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {e.itemLabel && `${e.itemLabel} 획득`}
+                        {e.backgroundLabel && ` · 세상이 '${e.backgroundLabel}'까지 넓어졌어요`}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <Button size="lg" className="w-full rounded-2xl h-14" onClick={() => setView("growth")}>
+                좋아요
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
