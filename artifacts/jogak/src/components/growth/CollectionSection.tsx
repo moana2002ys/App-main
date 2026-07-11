@@ -2,12 +2,11 @@ import { useAppStore } from "@/lib/store";
 import {
   CATEGORIES_BY_AREA,
   ALL_AREAS,
-  ITEMS,
   AREA_LABELS,
   BADGE_THRESHOLD,
-  itemIdForCategory,
 } from "@/lib/rewards";
 import { Character } from "@/components/Character";
+import { BadgeIcon } from "@/components/BadgeIcon";
 import { motion } from "framer-motion";
 
 export function CollectionSection() {
@@ -26,9 +25,9 @@ export function CollectionSection() {
         </p>
       </section>
 
-      {/* 뱃지·아이템 보관함 */}
+      {/* 뱃지 보관함 */}
       <section>
-        <h3 className="text-sm font-medium text-foreground/70 mb-3 px-1">뱃지 · 아이템 보관함</h3>
+        <h3 className="text-sm font-medium text-foreground/70 mb-3 px-1">모은 조각 배지</h3>
         <div className="space-y-5">
           {ALL_AREAS.map((area) => {
             const cats = CATEGORIES_BY_AREA[area];
@@ -41,33 +40,40 @@ export function CollectionSection() {
                     {earnedCount === cats.length ? "모두 모았어요 ✨" : `${earnedCount}/${cats.length} 조각`}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {cats.map((cat) => {
                     const earned = user.badges.includes(cat.id);
                     const count = user.categoryCounts[cat.id] || 0;
-                    const itemId = itemIdForCategory(cat, user.daily?.interest);
-                    const meta = ITEMS[itemId];
                     return (
                       <div
                         key={cat.id}
-                        className={`rounded-2xl p-3 border text-center transition-colors ${
+                        className={`rounded-2xl p-3.5 border flex items-center gap-3 transition-colors ${
                           earned
                             ? "bg-white border-white/70 shadow-sm"
                             : "bg-secondary/40 border-transparent"
                         }`}
                       >
-                        <div
-                          className={`w-11 h-11 mx-auto rounded-full flex items-center justify-center text-xl mb-1.5 ${
-                            earned ? "bg-secondary" : "bg-white/50"
-                          }`}
-                        >
-                          <span className={earned ? "" : "opacity-25 grayscale"}>
-                            {earned ? meta?.emoji : "🔒"}
-                          </span>
+                        <BadgeIcon categoryId={cat.id} size={48} earned={earned} className="shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`text-[13px] font-semibold leading-tight truncate ${
+                              earned ? "text-foreground" : "text-muted-foreground/60"
+                            }`}
+                          >
+                            {cat.title}
+                          </p>
+                          <p
+                            className={`text-[10.5px] leading-tight mt-0.5 ${
+                              earned ? "text-muted-foreground" : "text-muted-foreground/50"
+                            }`}
+                          >
+                            {earned
+                              ? cat.badgeName
+                              : count > 0
+                              ? `${Math.min(count, BADGE_THRESHOLD)}/${BADGE_THRESHOLD} 모으는 중`
+                              : "아직 만나기 전"}
+                          </p>
                         </div>
-                        <p className={`text-[10px] leading-tight ${earned ? "text-foreground/80" : "text-muted-foreground/60"}`}>
-                          {earned ? cat.badgeName : `${Math.min(count, BADGE_THRESHOLD)}/${BADGE_THRESHOLD}회`}
-                        </p>
                       </div>
                     );
                   })}

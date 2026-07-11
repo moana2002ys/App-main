@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { adjustBandNextDay } from "@/lib/classifier";
-import { applyCompletion, EarnedReward, ITEMS } from "@/lib/rewards";
+import { applyCompletion, EarnedReward } from "@/lib/rewards";
 import { Character } from "@/components/Character";
+import { BadgeIcon } from "@/components/BadgeIcon";
 
 export function Reflection() {
   const { user, updateUser, setView } = useAppStore();
@@ -198,15 +199,16 @@ export function Reflection() {
                     transition={{ delay: 0.2 + i * 0.12 }}
                     className="bg-white p-5 rounded-3xl shadow-sm border border-border/50 flex items-center gap-4 text-left"
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center text-2xl shrink-0">
-                      {ITEMS[e.itemId]?.emoji ?? "✨"}
-                    </div>
+                    <BadgeIcon categoryId={e.categoryId} size={52} className="shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-foreground font-medium leading-snug">{e.badgeName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {e.itemLabel && `${e.itemLabel} 획득`}
-                        {e.backgroundLabel && ` · 세상이 '${e.backgroundLabel}'까지 넓어졌어요`}
-                      </p>
+                      <p className="text-foreground font-semibold leading-snug">{e.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{e.badgeName}</p>
+                      {(e.itemLabel || e.backgroundLabel) && (
+                        <p className="text-[11px] text-primary/80 mt-1">
+                          {e.itemLabel && `${e.itemLabel} 획득`}
+                          {e.backgroundLabel && ` · 세상이 '${e.backgroundLabel}'까지 넓어졌어요`}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 ))}

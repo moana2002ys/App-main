@@ -74,7 +74,8 @@ export function interestItemId(interest?: string | null): string {
 export interface Category {
   id: string;
   area: Area;
-  badgeName: string; // 성장 프레이밍 문구
+  title: string; // 센스 있는 위트 타이틀 (부드럽고 따뜻한 결)
+  badgeName: string; // 성장 프레이밍 한 줄 설명 ("~이 익숙해졌어요")
   itemId?: string;
   itemResolver?: (interest?: string | null) => string;
   backgroundStage?: number; // 이 카테고리 첫 뱃지 달성 시 배경 확장
@@ -82,37 +83,38 @@ export interface Category {
 }
 
 // 설계서 3절 표의 카테고리 → 뱃지 → 아이템 매핑
+// title = 툭 던지지만 다정한 위트 타이틀 / badgeName = 따뜻한 성장 한 줄 설명
 export const CATEGORIES: Category[] = [
   // 생활 리듬
-  { id: "rhythm-anchor", area: AREAS.rhythm, badgeName: "하루의 시작점이 생겼어요", itemId: "clock",
+  { id: "rhythm-anchor", area: AREAS.rhythm, title: "하루를 여는 사람", badgeName: "하루의 시작점이 생겼어요", itemId: "clock",
     keywords: ["기상", "알람", "취침", "일어난", "잠", "계획", "루틴", "스마트폰", "저녁 루틴"] },
-  { id: "rhythm-light", area: AREAS.rhythm, badgeName: "아침이 밝아졌어요", itemId: "curtain",
+  { id: "rhythm-light", area: AREAS.rhythm, title: "볕 들이는 사람", badgeName: "아침이 밝아졌어요", itemId: "curtain",
     keywords: ["빛", "햇빛", "햇살", "커튼", "창문", "창가", "환기", "바람", "공기"] },
-  { id: "rhythm-meal", area: AREAS.rhythm, badgeName: "끼니와 친해졌어요", itemId: "meal",
+  { id: "rhythm-meal", area: AREAS.rhythm, title: "끼니 챙기는 사람", badgeName: "끼니와 친해졌어요", itemId: "meal",
     keywords: ["식사", "밥", "끼니", "먹", "물 한", "물 한 컵", "차 한", "커피", "아침 식사"] },
 
   // 자기 돌봄
-  { id: "self-walk", area: AREAS.selfcare, badgeName: "산책이 익숙해졌어요", itemId: "shoes", backgroundStage: 1,
+  { id: "self-walk", area: AREAS.selfcare, title: "동네 산책러", badgeName: "산책이 익숙해졌어요", itemId: "shoes", backgroundStage: 1,
     keywords: ["산책", "걷", "걸어", "외출", "나가", "동네", "카페", "나들이"] },
-  { id: "self-move", area: AREAS.selfcare, badgeName: "몸이 가벼워졌어요", itemId: "yogamat",
+  { id: "self-move", area: AREAS.selfcare, title: "가볍게 움직이는 사람", badgeName: "몸이 가벼워졌어요", itemId: "yogamat",
     keywords: ["스트레칭", "요가", "운동", "몸을 움직", "움직이"] },
-  { id: "self-hygiene", area: AREAS.selfcare, badgeName: "산뜻해졌어요", itemId: "mirror",
+  { id: "self-hygiene", area: AREAS.selfcare, title: "산뜻함 담당", badgeName: "산뜻해졌어요", itemId: "mirror",
     keywords: ["세수", "양치", "씻", "거울", "샤워", "머리", "몸단장", "단장"] },
-  { id: "self-emotion", area: AREAS.selfcare, badgeName: "마음을 들여다보게 됐어요", itemId: "diary",
+  { id: "self-emotion", area: AREAS.selfcare, title: "마음 관찰자", badgeName: "마음을 들여다보게 됐어요", itemId: "diary",
     keywords: ["감정", "기분", "이모지", "심호흡", "마음", "일기", "칭찬", "명상", "호흡"] },
-  { id: "self-space", area: AREAS.selfcare, badgeName: "공간이 정돈됐어요", itemId: "broom",
+  { id: "self-space", area: AREAS.selfcare, title: "공간 정돈가", badgeName: "공간이 정돈됐어요", itemId: "broom",
     keywords: ["정리", "정돈", "청소", "치우", "구석"] },
-  { id: "self-hobby", area: AREAS.selfcare, badgeName: "취향과 가까워졌어요", itemResolver: interestItemId,
+  { id: "self-hobby", area: AREAS.selfcare, title: "취향 탐험가", badgeName: "취향과 가까워졌어요", itemResolver: interestItemId,
     keywords: ["음악", "노래", "듣기", "책", "읽", "글", "식물", "화분", "그림", "게임", "요리", "만들기", "영화", "취미"] },
 
   // 관계
-  { id: "rel-trust", area: AREAS.relationship, badgeName: "마음을 나눴어요", itemId: "letter", backgroundStage: 2,
+  { id: "rel-trust", area: AREAS.relationship, title: "안부 전하는 사람", badgeName: "마음을 나눴어요", itemId: "letter", backgroundStage: 2,
     keywords: ["통화", "전화", "가족", "친구", "안부", "문자", "인사", "고마워", "눈인사", "약속", "편지", "지인"] },
-  { id: "rel-connect", area: AREAS.relationship, badgeName: "세상과 조금 이어졌어요", itemId: "speech", backgroundStage: 2,
+  { id: "rel-connect", area: AREAS.relationship, title: "세상과 연결 중", badgeName: "세상과 조금 이어졌어요", itemId: "speech", backgroundStage: 2,
     keywords: ["메시지", "읽음", "댓글", "좋아요", "커뮤니티", "영상", "sns", "프로필", "창밖", "창문 밖", "이모티콘", "유튜", "게시물"] },
 
   // 사회 진입
-  { id: "social-explore", area: AREAS.social, badgeName: "나를 찾아가고 있어요", itemId: "bag", backgroundStage: 3,
+  { id: "social-explore", area: AREAS.social, title: "나를 찾는 탐험가", badgeName: "나를 찾아가고 있어요", itemId: "bag", backgroundStage: 3,
     keywords: [] },
 ];
 
@@ -178,6 +180,7 @@ export interface GrowthEvent {
 
 export interface EarnedReward {
   categoryId: string;
+  title: string;
   badgeName: string;
   itemId: string;
   itemLabel: string;
@@ -240,6 +243,7 @@ export function applyCompletion(
     log.push({ day: prev.day, type: "badge", area, category: catId, label: cat.badgeName });
     earned.push({
       categoryId: catId,
+      title: cat.title,
       badgeName: cat.badgeName,
       itemId,
       itemLabel: ITEMS[itemId]?.label ?? "",
