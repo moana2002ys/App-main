@@ -4,7 +4,7 @@ import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
-import { DailyAnswers, Area, AREAS as AREA_KEYS, isAreaEligible } from "@/lib/classifier";
+import { DailyAnswers, Area, AREAS as AREA_KEYS, isAreaEligible, getStageAllowedAreas } from "@/lib/classifier";
 import { getSurveyCategories } from "@workspace/mission-bank";
 
 const CONDITIONS = [
@@ -38,13 +38,18 @@ export function DailyCheckin() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<DailyAnswers>>({});
 
-  // 설문 2번째 질문 활동 후보 = 저장된 진단(금지조건) + 방금 답한 컨디션 게이트를 통과하는 활동.
-  // 카테고리 게이트(getSurveyCategories) + 영역 게이트(isAreaEligible)를 함께 적용한다.
+  // 설문 2번째 질문 활동 후보 = 저장된 진단(회복단계 허용 영역 + 금지조건) +
+  // 방금 답한 컨디션 게이트를 통과하는 활동.
+  // 단계 허용 영역(getStageAllowedAreas) + 카테고리 게이트(getSurveyCategories) +
+  // 영역 게이트(isAreaEligible)를 함께 적용한다.
   const activityGroups = useMemo(() => {
     const forbidden = user.forbidden ?? [];
     const condition = answers.condition ?? "그저 그럼";
-    const eligible = getSurveyCategories({ forbidden, condition }).filter((c) =>
-      isAreaEligible(c.area as Area, forbidden),
+    const allowedAreas = getStageAllowedAreas(user.stage);
+    const eligible = getSurveyCategories({ forbidden, condition }).filter(
+      (c) =>
+        allowedAreas.includes(c.area as Area) &&
+        isAreaEligible(c.area as Area, forbidden),
     );
     return AREA_ORDER.map((area) => ({
       area,
@@ -53,7 +58,7 @@ export function DailyCheckin() {
         .filter((c) => c.area === area)
         .map((c) => ({ id: c.id, label: c.label })),
     })).filter((g) => g.items.length > 0);
-  }, [user.forbidden, answers.condition]);
+  }, [user.forbidden, user.stage, answers.condition]);
 
   const handleNext = (val: string) => {
     let newAnswers = { ...answers };

@@ -65,6 +65,21 @@ export function determineStage(answers: OnboardingAnswers): { stage: Stage, base
   return { stage: STAGES.not_at_risk, baseBandLow: 3, baseBandHigh: 4, forbidden: [] };
 }
 
+// 회복단계별 허용(제안) 영역 — 미션뱅크 설계서 2절 표의 단일 출처.
+// 은둔: 생활리듬·자기돌봄 / 고도고립: +관계(비대면) / 고립위험군: +사회진입 저강도 / 비위험군: 전 영역
+const STAGE_ALLOWED_AREAS: Record<Stage, Area[]> = {
+  [STAGES.secluded]: [AREAS.rhythm, AREAS.selfcare],
+  [STAGES.highly_isolated]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship],
+  [STAGES.at_risk]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social],
+  [STAGES.not_at_risk]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social],
+};
+
+// 단계 미확정(온보딩 전) 시에는 가장 안전한 영역만 노출한다.
+export function getStageAllowedAreas(stage: Stage | null | undefined): Area[] {
+  if (!stage) return [AREAS.rhythm, AREAS.selfcare];
+  return STAGE_ALLOWED_AREAS[stage];
+}
+
 export function determineTodayArea(stage: Stage, desiredArea: Area | 'unknown', forbidden: string[]): Area {
   // (B) 오늘 챌린지 영역 = 데일리 설문의 희망영역. (잘 모르겠음 → 회복단계 기본 우선영역)
   // 단, 금지조건에 걸리는 영역은 제외. 은둔·고도고립 초기에는 생활리듬·자기돌봄 우선.
@@ -74,6 +89,11 @@ export function determineTodayArea(stage: Stage, desiredArea: Area | 'unknown', 
     stage === STAGES.secluded || stage === STAGES.highly_isolated ? AREAS.rhythm : AREAS.selfcare;
 
   let targetArea: Area = desiredArea === 'unknown' ? stageDefault : desiredArea;
+
+  // 단계 허용 영역 밖이면 단계 기본 영역으로 회귀 (설계서 2절: 단계별 허용 영역)
+  if (!getStageAllowedAreas(stage).includes(targetArea)) {
+    targetArea = stageDefault;
+  }
 
   // 사회진입 게이트: 외출·경제활동이 필요한 영역 → 외출이 금지조건인 동안은 배정하지 않음
   if (targetArea === AREAS.social && forbidden.includes('외출')) {
@@ -116,8 +136,7 @@ export function getDiversityAreas(
   low: number,
   high: number,
 ): { area: Area; bandLow: number; bandHigh: number }[] {
-  const allAreas: Area[] = [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social];
-  return allAreas
+  return getStageAllowedAreas(stage)
     .filter((a) => a !== selectedArea && isAreaEligible(a, forbidden))
     .map((a) => {
       const capped = capBandForArea(stage, a, low, high);
