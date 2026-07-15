@@ -1,6 +1,57 @@
 import { motion } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { ITEMS } from "@/lib/rewards";
+import { equippedDecoIds } from "@/lib/decor";
+
+// 레이어드 착용 아이템 (deco-lab 통합): 캐릭터 SVG 안에 직접 그려짐
+function DecoLayer({ id }: { id: string }) {
+  if (id === 'headphone') {
+    return (
+      <g>
+        <path d="M20 50 C20 20 80 20 80 50" stroke="#8B5CF6" strokeWidth="6" strokeLinecap="round" fill="none" />
+        <rect x="15" y="40" width="10" height="20" rx="4" fill="#8B5CF6" />
+        <rect x="75" y="40" width="10" height="20" rx="4" fill="#8B5CF6" />
+      </g>
+    );
+  }
+  if (id === 'plant') {
+    return (
+      <g transform="translate(60, 60)">
+        <path d="M10 20 Q 5 10 10 0 Q 15 10 10 20" fill="#4ADE80" />
+        <path d="M10 20 Q 15 15 20 5 Q 15 10 10 20" fill="#22C55E" />
+      </g>
+    );
+  }
+  if (id === 'shoes') {
+    return (
+      <g transform="translate(0, 80)">
+        <ellipse cx="35" cy="10" rx="10" ry="5" fill="#EF4444" />
+        <ellipse cx="65" cy="10" rx="10" ry="5" fill="#EF4444" />
+      </g>
+    );
+  }
+  if (id === 'hat') {
+    return (
+      <g transform="translate(25, 0)">
+        <path d="M10 20 L 40 20 C 40 20 45 5 25 5 C 5 5 10 20 10 20 Z" fill="#3B82F6" />
+        <ellipse cx="25" cy="20" rx="20" ry="4" fill="#2563EB" />
+        <circle cx="25" cy="5" r="4" fill="#60A5FA" />
+      </g>
+    );
+  }
+  if (id === 'glasses') {
+    return (
+      <g transform="translate(20, 40)">
+        <path d="M 5 5 L 25 5" stroke="#1F2937" strokeWidth="2" />
+        <path d="M 35 5 L 55 5" stroke="#1F2937" strokeWidth="2" />
+        <path d="M 25 5 Q 30 0 35 5" stroke="#1F2937" strokeWidth="2" fill="none" />
+        <circle cx="15" cy="5" r="8" stroke="#1F2937" strokeWidth="2" fill="none" />
+        <circle cx="45" cy="5" r="8" stroke="#1F2937" strokeWidth="2" fill="none" />
+      </g>
+    );
+  }
+  return null;
+}
 
 // 캐릭터 주변에 아이템이 은은하게 붙는 위치 (더하기만, 회수 없음)
 const ITEM_SLOTS = [
@@ -22,19 +73,23 @@ export function Character({
   showItems = true,
   colorOverride,
   itemsOverride,
+  decoOverride,
 }: {
   className?: string;
-  size?: "sm" | "lg";
+  size?: "sm" | "lg" | "xl";
   showItems?: boolean;
   colorOverride?: string;
   itemsOverride?: string[];
+  decoOverride?: string[];
 }) {
   const { user } = useAppStore();
   const color = colorOverride || user.characterColor || "#FBBF24";
-  const items = itemsOverride ?? user.equippedItems;
+  const decoItems = decoOverride ?? equippedDecoIds(user.decoEquipped);
+  // 레이어드 아이템으로 착용 중인 것과 같은 이모지 액세서리는 중복 표시하지 않음
+  const items = (itemsOverride ?? user.equippedItems).filter((id) => !decoItems.includes(id));
 
   const isSmall = size === "sm";
-  const s = isSmall ? 60 : 180;
+  const s = isSmall ? 60 : size === "xl" ? 260 : 180;
 
   return (
     <div className={`relative flex items-center justify-center ${className}`} style={{ width: s, height: s }}>
@@ -67,6 +122,11 @@ export function Character({
 
           {/* Mouth */}
           <path d="M45 55 Q 50 60 55 55" stroke="#4B3E2F" strokeWidth="2" strokeLinecap="round" fill="none" />
+
+          {/* 레이어드 착용 아이템 */}
+          {decoItems.map((id) => (
+            <DecoLayer key={id} id={id} />
+          ))}
         </svg>
       </motion.div>
 

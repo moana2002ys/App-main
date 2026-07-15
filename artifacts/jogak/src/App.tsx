@@ -11,6 +11,8 @@ import { DailyCheckin } from "@/pages/daily-checkin";
 import { Home } from "@/pages/home";
 import { Reflection } from "@/pages/reflection";
 import { Growth } from "@/pages/growth";
+import { DecoCharacter } from "@/pages/deco-character";
+import { DecoRoom } from "@/pages/deco-room";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ function MainFlow() {
       {view === 'home' && <Home />}
       {view === 'reflection' && <Reflection />}
       {view === 'growth' && <Growth />}
+      {view === 'deco_character' && <DecoCharacter />}
+      {view === 'deco_room' && <DecoRoom />}
     </PhoneFrame>
   );
 }

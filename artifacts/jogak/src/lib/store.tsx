@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useC
 import { Area, Stage, OnboardingAnswers, DailyAnswers, adjustBandNextDay } from "./classifier";
 import { Challenge, getMe, saveState, logout as logoutApi } from "@workspace/api-client-react";
 import { GrowthEvent, emptyCounts } from "./rewards";
+import { DecoEquipped, PlacedFurniture } from "./decor";
 
 export type ViewState =
   | 'loading'
@@ -10,7 +11,9 @@ export type ViewState =
   | 'daily_checkin'
   | 'home'
   | 'reflection'
-  | 'growth';
+  | 'growth'
+  | 'deco_character'
+  | 'deco_room';
 
 export interface UserState {
   email: string;
@@ -36,6 +39,10 @@ export interface UserState {
   equippedItems: string[];
   backgroundStage: number;
   growthLog: GrowthEvent[];
+
+  // 꾸미기 (deco-lab 통합): 캐릭터 착용 아이템(카테고리별 1개) + 방 가구 배치
+  decoEquipped: DecoEquipped;
+  roomPlacements: PlacedFurniture[];
 
   dayCount: number;
 
@@ -78,6 +85,8 @@ const defaultUser: UserState = {
   equippedItems: [],
   backgroundStage: 0,
   growthLog: [],
+  decoEquipped: {},
+  roomPlacements: [],
   dayCount: 1,
   todayChallenges: null,
   acceptedChallenge: null,

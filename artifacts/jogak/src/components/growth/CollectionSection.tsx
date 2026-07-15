@@ -8,9 +8,10 @@ import {
 import { Character } from "@/components/Character";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { motion } from "framer-motion";
+import { Brush, Sofa } from "lucide-react";
 
 export function CollectionSection() {
-  const { user } = useAppStore();
+  const { user, setView } = useAppStore();
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -23,6 +24,22 @@ export function CollectionSection() {
         <p className="text-xs text-muted-foreground">
           획득한 아이템 {user.equippedItems.length}개가 함께하고 있어요
         </p>
+        <div className="w-full grid grid-cols-2 gap-2.5 pt-1">
+          <button
+            onClick={() => setView('deco_character')}
+            className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary/10 text-primary text-[13px] font-semibold hover:bg-primary/15 transition-colors"
+          >
+            <Brush className="w-4 h-4" />
+            조각이 꾸미기
+          </button>
+          <button
+            onClick={() => setView('deco_room')}
+            className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary/10 text-primary text-[13px] font-semibold hover:bg-primary/15 transition-colors"
+          >
+            <Sofa className="w-4 h-4" />
+            내 공간 꾸미기
+          </button>
+        </div>
       </section>
 
       {/* 뱃지 보관함 */}
