@@ -4,7 +4,7 @@ import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
-import { DailyAnswers, Area, AREAS as AREA_KEYS, isAreaEligible, getStageAllowedAreas } from "@/lib/classifier";
+import { DailyAnswers, Area, AREAS as AREA_KEYS, getStageTargetArea, getStageAllowedAreas } from "@/lib/classifier";
 import { getSurveyCategories } from "@workspace/mission-bank";
 
 const CONDITIONS = [
@@ -38,19 +38,26 @@ export function DailyCheckin() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<DailyAnswers>>({});
 
-  // 설문 2번째 질문 활동 후보 = 저장된 진단(회복단계 허용 영역 + 금지조건) +
-  // 방금 답한 컨디션 게이트를 통과하는 활동.
-  // 단계 허용 영역(getStageAllowedAreas) + 카테고리 게이트(getSurveyCategories) +
-  // 영역 게이트(isAreaEligible)를 함께 적용한다.
+  // 설문 2번째 질문 활동 후보 = 회복단계의 '타깃 영역' 안의 활동만.
+  // (타깃 미션 2개가 이 영역에서 나오므로, 고른 활동이 자연스럽게 반영된다.)
+  // 카테고리 게이트(getSurveyCategories: 금지태그·컨디션)는 그대로 함께 적용하고,
+  // 타깃 영역의 활동이 컨디션 게이트로 전부 닫히면 바로 아래 허용 영역으로 내려간다.
   const activityGroups = useMemo(() => {
     const forbidden = user.forbidden ?? [];
     const condition = answers.condition ?? "그저 그럼";
-    const allowedAreas = getStageAllowedAreas(user.stage);
-    const eligible = getSurveyCategories({ forbidden, condition }).filter(
-      (c) =>
-        allowedAreas.includes(c.area as Area) &&
-        isAreaEligible(c.area as Area, forbidden),
-    );
+    const open = getSurveyCategories({ forbidden, condition });
+    const allowed = getStageAllowedAreas(user.stage);
+    let targetArea = getStageTargetArea(user.stage, forbidden);
+    if (!open.some((c) => c.area === targetArea)) {
+      const idx = allowed.indexOf(targetArea);
+      for (let i = idx - 1; i >= 0; i--) {
+        if (open.some((c) => c.area === allowed[i])) {
+          targetArea = allowed[i]!;
+          break;
+        }
+      }
+    }
+    const eligible = open.filter((c) => c.area === targetArea);
     return AREA_ORDER.map((area) => ({
       area,
       label: AREA_LABEL[area],

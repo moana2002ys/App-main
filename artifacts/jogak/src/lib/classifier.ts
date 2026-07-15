@@ -65,47 +65,36 @@ export function determineStage(answers: OnboardingAnswers): { stage: Stage, base
   return { stage: STAGES.not_at_risk, baseBandLow: 3, baseBandHigh: 4, forbidden: [] };
 }
 
-// 회복단계별 허용(제안) 영역 — 미션뱅크 설계서 2절 표의 단일 출처.
-// 은둔: 생활리듬·자기돌봄 / 고도고립: +관계(비대면) / 고립위험군: +사회진입 저강도 / 비위험군: 전 영역
+// 회복단계별 허용(제안) 영역 — 단계가 오를수록 하위 영역에 하나씩 누적된다(2026-07-15 확정 규칙).
+// 은둔: 생활리듬 / 고도고립: +자기돌봄 / 고립위험군: +관계 / 비위험군: +사회진입(전 영역)
+// 배열의 마지막 원소 = 그 단계에서 정복해야 하는 '타깃 영역'.
 const STAGE_ALLOWED_AREAS: Record<Stage, Area[]> = {
-  [STAGES.secluded]: [AREAS.rhythm, AREAS.selfcare],
-  [STAGES.highly_isolated]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship],
-  [STAGES.at_risk]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social],
+  [STAGES.secluded]: [AREAS.rhythm],
+  [STAGES.highly_isolated]: [AREAS.rhythm, AREAS.selfcare],
+  [STAGES.at_risk]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship],
   [STAGES.not_at_risk]: [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social],
 };
 
-// 단계 미확정(온보딩 전) 시에는 가장 안전한 영역만 노출한다.
+// 단계 미확정(온보딩 전) 시에는 가장 안전한 생활리듬만 노출한다.
 export function getStageAllowedAreas(stage: Stage | null | undefined): Area[] {
-  if (!stage) return [AREAS.rhythm, AREAS.selfcare];
+  if (!stage) return [AREAS.rhythm];
   return STAGE_ALLOWED_AREAS[stage];
 }
 
-export function determineTodayArea(stage: Stage, desiredArea: Area | 'unknown', forbidden: string[]): Area {
-  // (B) 오늘 챌린지 영역 = 데일리 설문의 희망영역. (잘 모르겠음 → 회복단계 기본 우선영역)
-  // 단, 금지조건에 걸리는 영역은 제외. 은둔·고도고립 초기에는 생활리듬·자기돌봄 우선.
-  // 관계·사회진입 영역은 게이트(대인/외출 부담) 통과 시에만 배정.
-
-  const stageDefault: Area =
-    stage === STAGES.secluded || stage === STAGES.highly_isolated ? AREAS.rhythm : AREAS.selfcare;
-
-  let targetArea: Area = desiredArea === 'unknown' ? stageDefault : desiredArea;
-
-  // 단계 허용 영역 밖이면 단계 기본 영역으로 회귀 (설계서 2절: 단계별 허용 영역)
-  if (!getStageAllowedAreas(stage).includes(targetArea)) {
-    targetArea = stageDefault;
+// 단계별 타깃 영역 = 허용 영역 중 최상단(가장 나중에 열린) 영역.
+// 금지조건 게이트(관계대면·외출)에 막히면 바로 아래 영역으로 안전하게 내려간다.
+export function getStageTargetArea(stage: Stage | null | undefined, forbidden: string[]): Area {
+  const allowed = getStageAllowedAreas(stage);
+  for (let i = allowed.length - 1; i >= 0; i--) {
+    if (isAreaEligible(allowed[i]!, forbidden)) return allowed[i]!;
   }
+  return AREAS.rhythm;
+}
 
-  // 사회진입 게이트: 외출·경제활동이 필요한 영역 → 외출이 금지조건인 동안은 배정하지 않음
-  if (targetArea === AREAS.social && forbidden.includes('외출')) {
-    targetArea = stageDefault;
-  }
-
-  // 관계 게이트: 모든 접촉(대면·전화·문자)이 부담인 은둔 단계 초기에는 리듬·돌봄 우선
-  if (targetArea === AREAS.relationship && forbidden.includes('관계대면')) {
-    targetArea = stageDefault;
-  }
-
-  return targetArea;
+export function determineTodayArea(stage: Stage, _desiredArea: Area | 'unknown', forbidden: string[]): Area {
+  // (B) 오늘 챌린지 선택 영역 = 회복단계의 타깃 영역(고정).
+  // 데일리 설문의 활동 선택은 타깃 영역 안에서만 이뤄지므로 희망영역 값은 참고하지 않는다.
+  return getStageTargetArea(stage, forbidden);
 }
 
 // 은둔·고도고립 단계에서 관계 영역이 배정될 땐 저강도(읽기·비대면)만 허용
