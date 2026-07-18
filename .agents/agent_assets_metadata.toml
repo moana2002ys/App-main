@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "lyOv4MXAfYQp8TpAavgtH"
+uri = "file://artifacts/jogak/docs/algorithm.md"
+type = "text"
+title = "조각조각 알고리즘 문서"
