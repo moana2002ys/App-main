@@ -9,6 +9,7 @@ export type ViewState =
   | 'auth'
   | 'onboarding'
   | 'daily_checkin'
+  | 'know_yourself'
   | 'home'
   | 'reflection'
   | 'growth'
@@ -28,6 +29,14 @@ export interface UserState {
   
   onboarding: OnboardingAnswers | null;
   daily: DailyAnswers | null;
+
+  // 설문 JSON 기반 온보딩 내부 상태(화면 비노출)
+  surveyResponses: Record<string, number> | null; // sc_q1·sc_q2·ss1~ss15 원응답
+  secluded: boolean; // 은둔 체크 양성 여부(단계 확정 시 우선 적용)
+  areaSeeds: Record<string, number> | null; // 영역 시드(부담 프로파일)
+
+  // '나 알아가기' (고립 척도 25문항 · 5챕터) 진행 상태
+  knowYourself: KnowYourselfState | null;
 
   points: number;
   totalCompletions: number;
@@ -77,6 +86,10 @@ const defaultUser: UserState = {
   forbidden: [],
   onboarding: null,
   daily: null,
+  surveyResponses: null,
+  secluded: false,
+  areaSeeds: null,
+  knowYourself: null,
   points: 0,
   totalCompletions: 0,
   streakDays: 0,
@@ -93,6 +106,27 @@ const defaultUser: UserState = {
   consecutiveSkips: 0,
   forceLowBurdenArea: false,
 };
+
+// '나 알아가기' 진행 상태 — 하루 1챕터, 중단 지점 저장·이어하기, 분기 스킵 기록
+export interface KnowYourselfState {
+  responses: Record<string, number>; // k1~k25 원응답
+  chapterIndex: number; // 다음에 진행할 챕터 인덱스(0~4)
+  itemIndex: number; // 해당 챕터에서 이어할 문항 인덱스
+  skippedChapters: string[]; // 분기 '아니오'로 건너뛴 챕터 id
+  completedChapters: string[]; // 완료(응답)한 챕터 id
+  lastChapterDay: number | null; // 마지막으로 챕터를 진행한 dayCount (하루 1장 제한)
+  finalized: boolean; // 5챕터 완료 → 단계 확정됨
+}
+
+export const emptyKnowYourself = (): KnowYourselfState => ({
+  responses: {},
+  chapterIndex: 0,
+  itemIndex: 0,
+  skippedChapters: [],
+  completedChapters: [],
+  lastChapterDay: null,
+  finalized: false,
+});
 
 const AppContext = createContext<AppContextType | null>(null);
 

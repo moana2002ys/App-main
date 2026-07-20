@@ -7,6 +7,7 @@ import { LogOut, Camera } from "lucide-react";
 import { useGenerateChallenges, useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { determineTodayArea, capBandForArea, getDiversityAreas, Area, AREAS } from "@/lib/classifier";
 import { getFallbackChallenges } from "@/lib/fallback-bank";
+import { knowYourselfCardCopy, getChapters } from "@/lib/survey";
 import { Challenge } from "@workspace/api-client-react";
 import { fileToDataUrl } from "@/lib/image";
 
@@ -136,6 +137,46 @@ export function Home() {
     setView("growth");
   };
 
+  // '나 알아가기' 카드 — 5챕터를 모두 마치기 전까지 하루 1장 노출.
+  // 오늘 이미 한 챕터를 진행했으면 숨긴다. 점수·라벨은 어디에도 노출하지 않는다.
+  const ky = user.knowYourself;
+  const showKnowCard =
+    !!user.stage &&
+    !(ky?.finalized) &&
+    (ky?.lastChapterDay ?? null) !== user.dayCount;
+
+  const startKnowYourself = () => {
+    setView("know_yourself");
+  };
+
+  const knowCard = showKnowCard ? (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 hover:border-primary/30 transition-colors"
+    >
+      <div className="flex justify-between items-start mb-4">
+        <span className="px-3 py-1 bg-secondary text-foreground text-xs rounded-full font-medium">
+          나 알아가기
+        </span>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 1분</span>
+      </div>
+      <h3 className="text-lg font-medium text-foreground mb-2 leading-relaxed">
+        {knowYourselfCardCopy}
+      </h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        {getChapters()[ky?.chapterIndex ?? 0]?.area_label ?? ""} 이야기를 들려줄래요?
+      </p>
+      <Button
+        variant="outline"
+        className="w-full rounded-xl hover:bg-primary hover:text-white transition-colors"
+        onClick={startKnowYourself}
+      >
+        좋아요, 해볼래요
+      </Button>
+    </motion.div>
+  ) : null;
+
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="px-6 pt-8 pb-4 flex justify-between items-center bg-white/50 backdrop-blur-sm border-b border-border/50 sticky top-0 z-20">
@@ -227,6 +268,8 @@ export function Home() {
                 />
               </div>
             )}
+
+            {knowCard && <div className="w-full">{knowCard}</div>}
           </div>
         ) : (
           <div className="space-y-6">
@@ -235,6 +278,8 @@ export function Home() {
                 이 중에 하나만<br/>가볍게 해볼까요?
               </h2>
             </div>
+
+            {knowCard}
             
             <AnimatePresence>
               {user.todayChallenges?.map((c, i) => (

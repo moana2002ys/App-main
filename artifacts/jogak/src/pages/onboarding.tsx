@@ -1,37 +1,11 @@
-import { useState } from "react";
-import { useAppStore } from "@/lib/store";
+import { useMemo, useState } from "react";
+import { useAppStore, emptyKnowYourself } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
-import { determineStage, OnboardingAnswers } from "@/lib/classifier";
-
-const QUESTIONS = [
-  {
-    id: "sleep",
-    question: "어제 몇 시쯤 주무셨나요?",
-    options: ["밤낮이 바뀌었어요", "새벽 늦게 잤어요", "자정 전후에 잤어요", "규칙적으로 자고 있어요"],
-    values: ["밤낮 바뀜", "새벽", "자정 전후", "규칙적"]
-  },
-  {
-    id: "outing",
-    question: "요즘 집 밖에 나가는 건 얼마나 부담되나요?",
-    options: ["매우 부담돼요", "조금 부담돼요", "괜찮아요"],
-    values: ["매우 부담", "조금 부담", "괜찮음"]
-  },
-  {
-    id: "contact",
-    question: "지금 편한 소통 방식은 어떤 건가요?",
-    options: ["혼자가 편해요", "문자가 좋아요", "전화도 괜찮아요", "만나서 대화도 괜찮아요"],
-    values: ["혼자가 편함", "문자", "전화", "대면 괜찮음"]
-  },
-  {
-    id: "area",
-    question: "지금 가장 신경 쓰이는 부분은 어디인가요?",
-    options: ["규칙적인 하루 리듬", "나를 돌보는 시간", "사람들과의 관계", "일이나 진로 방향", "잘 모르겠어요"],
-    values: ["rhythm", "selfcare", "relationship", "social", "unknown"]
-  }
-];
+import { getFirstLaunchItems, firstLaunchIntro } from "@/lib/survey";
+import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
 
 const COLORS = [
   { id: "#FBBF24", name: "따뜻한 노랑" },
@@ -40,41 +14,51 @@ const COLORS = [
   { id: "#F472B6", name: "부드러운 분홍" }
 ];
 
-// step 0: 인트로 / 1~4: 온보딩 설문 / 5: 닉네임·캐릭터 색
+// step 0: 인트로 / 1~N: 설문 문항(JSON 단일 출처, 한 번에 하나씩) / N+1: 닉네임·캐릭터 색
 export function Onboarding() {
   const { updateUser, setView } = useAppStore();
+  const items = useMemo(() => getFirstLaunchItems(), []);
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<Partial<OnboardingAnswers>>({});
+  const [responses, setResponses] = useState<SurveyResponses>({});
   const [nickname, setNickname] = useState("");
   const [color, setColor] = useState("#FBBF24");
 
-  const handleAnswer = (val: string) => {
-    const q = QUESTIONS[step - 1];
-    setAnswers(prev => ({ ...prev, [q.id]: val }));
+  const totalSteps = items.length;
+  const currentItem = step >= 1 && step <= totalSteps ? items[step - 1] : null;
+  // 진행 표시: 숫자 없이 부드러운 게이지만
+  const progress = step >= 1 && step <= totalSteps ? step / (totalSteps + 1) : 0;
+
+  const handleAnswer = (v: number) => {
+    if (!currentItem) return;
+    setResponses(prev => ({ ...prev, [currentItem.id]: v }));
     setStep(step + 1);
   };
 
   const handleFinish = () => {
-    const finalAnswers = answers as OnboardingAnswers;
-    const { stage, baseBandLow, baseBandHigh, forbidden } = determineStage(finalAnswers);
+    const result = scoreFirstLaunch(items, responses);
+    const legacy = deriveLegacyAnswers(responses, result);
 
     updateUser({
       nickname: nickname.trim() || "조각이 친구",
       characterColor: color,
-      onboarding: finalAnswers,
-      stage,
-      baseBandLow,
-      baseBandHigh,
-      currentBandLow: baseBandLow,
-      currentBandHigh: baseBandHigh,
-      forbidden
+      onboarding: legacy,
+      surveyResponses: responses,
+      secluded: result.secluded,
+      areaSeeds: result.areaSeeds,
+      knowYourself: emptyKnowYourself(),
+      stage: result.stage,
+      baseBandLow: result.baseBandLow,
+      baseBandHigh: result.baseBandHigh,
+      currentBandLow: result.baseBandLow,
+      currentBandHigh: result.baseBandHigh,
+      forbidden: result.forbidden
     });
     setView("daily_checkin");
   };
 
   return (
     <div className="flex flex-col h-full bg-background p-6">
-      <div className="h-10 flex items-center">
+      <div className="h-10 flex items-center gap-3">
         {step > 0 && (
           <button
             onClick={() => setStep(step - 1)}
@@ -83,6 +67,16 @@ export function Onboarding() {
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
+        )}
+        {progress > 0 && (
+          <div className="flex-1 h-1.5 bg-secondary/60 rounded-full overflow-hidden" aria-hidden="true">
+            <motion.div
+              className="h-full bg-primary/50 rounded-full"
+              initial={false}
+              animate={{ width: `${Math.round(progress * 100)}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
+          </div>
         )}
       </div>
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
@@ -105,42 +99,39 @@ export function Onboarding() {
                   조각조각은 하루에 하나,<br />
                   아주 작은 조각을 함께 모으는 공간이에요.
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  먼저 몇 가지만 가볍게 여쭤볼게요.<br />
-                  정답은 없으니 편하게 골라주세요.
-                </p>
+                <p className="text-sm text-muted-foreground">{firstLaunchIntro}</p>
               </div>
 
               <Button size="lg" className="w-full rounded-2xl mt-4 h-14" onClick={() => setStep(1)}>
                 천천히 시작하기
               </Button>
             </motion.div>
-          ) : step <= QUESTIONS.length ? (
+          ) : currentItem ? (
             <motion.div
-              key={`q${step}`}
+              key={`q-${currentItem.id}`}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              className="space-y-6"
             >
-              <div className="flex justify-center mb-8">
+              <div className="flex justify-center mb-6">
                 <Character size="sm" showItems={false} />
               </div>
 
               <div className="bg-white p-6 rounded-3xl rounded-tl-none shadow-sm border border-border/50 text-foreground text-lg leading-relaxed relative">
-                {QUESTIONS[step - 1].question}
+                {currentItem.q}
                 <div className="absolute top-0 -left-3 w-4 h-4 bg-white border-l border-t border-border/50 transform -skew-x-[20deg]"></div>
               </div>
 
-              <div className="space-y-3 mt-8">
-                {QUESTIONS[step - 1].options.map((opt, i) => (
+              <div className={`mt-6 ${currentItem.options.length > 5 ? 'grid grid-cols-2 gap-2.5' : 'space-y-3'}`}>
+                {currentItem.options.map((opt) => (
                   <Button
-                    key={opt}
+                    key={`${currentItem.id}-${opt.v}`}
                     variant="outline"
-                    className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
-                    onClick={() => handleAnswer(QUESTIONS[step - 1].values[i])}
+                    className={`w-full justify-start text-left h-auto rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal ${currentItem.options.length > 5 ? 'py-3 px-4 text-sm' : 'py-4 px-6'}`}
+                    onClick={() => handleAnswer(opt.v)}
                   >
-                    {opt}
+                    {opt.label}
                   </Button>
                 ))}
               </div>
