@@ -1,4 +1,4 @@
-// 온보딩 설문 데이터 모듈 — src/data/onboarding-survey.json(v1.2)이 단일 출처.
+// 온보딩 설문 데이터 모듈 — src/data/onboarding-survey.json(v1.5)이 단일 출처.
 // 문항·선택지·척도·역코딩·분기·채점 파라미터를 전부 JSON에서 읽는다(하드코딩 금지).
 import surveyData from "@/data/onboarding-survey.json";
 
@@ -48,7 +48,10 @@ interface SurveyJson {
     response_scales: Record<string, SurveyOption[]>;
     reverse_items: string[];
     chapters: Chapter[];
-    scoring: { cutoffs: Record<string, string> };
+    scoring: {
+      cutoffs: Record<string, string>;
+      reflection_timing?: { chapter_area_map?: Record<string, string[]> };
+    };
   };
 }
 
@@ -125,6 +128,12 @@ export function getOutingBurdenRules(): { min: number; max: number; label: strin
     const [min, max] = parseRange(range);
     return { min, max, label };
   });
+}
+
+// 챕터 → 라우팅 대상 영역 매핑(know_yourself.scoring.reflection_timing.chapter_area_map)
+// 챕터 완료 시 해당 영역 시드에 하위점수를 더해 '영역 우선순위'만 갱신(단계는 불변).
+export function getChapterAreaMap(): Record<string, string[]> {
+  return data.know_yourself.scoring.reflection_timing?.chapter_area_map ?? {};
 }
 
 // 고립 수준 컷오프(know_yourself.scoring.cutoffs): 라벨 → [min, max]

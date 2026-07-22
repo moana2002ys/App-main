@@ -42,7 +42,7 @@ export function Home() {
     // 이틀 연속 건너뛴 다음 날은 부담이 낮은 영역(생활리듬)부터 다시 시작
     let targetArea = user.forceLowBurdenArea
       ? AREAS.rhythm
-      : determineTodayArea(stage, user.daily.area as Area | 'unknown', user.forbidden);
+      : determineTodayArea(stage, user.daily.area as Area | 'unknown', user.forbidden, user.areaSeeds);
 
     // 오늘 컨디션 반영 밴드(선택 영역 캡 적용 전) — 다양성 후보 밴드 산출의 기준값
     let low = user.currentBandLow;

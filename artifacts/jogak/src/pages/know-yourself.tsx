@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { getChapters, getScale } from "@/lib/survey";
-import { scoreKnowYourself, finalStageFrom, stageBands, stageForbidden } from "@/lib/survey-scoring";
+import { scoreKnowYourself, finalStageFrom, stageBands, stageForbidden, applyChapterRouting } from "@/lib/survey-scoring";
 
 // '나 알아가기' — 고립 척도 25문항을 5챕터로 나눠 하루 한 챕터씩 진행.
 // 점수·컷오프·라벨은 절대 화면에 노출하지 않는다. 결과는 내부 단계 확정에만 사용.
@@ -57,6 +57,12 @@ export function KnowYourself() {
       finalized: nextIndex >= chapters.length,
     };
 
+    // 챕터별 라우팅(reflection_timing): 완료한 챕터의 하위점수를 매핑된 영역 시드에 더해
+    // '영역 우선순위'만 갱신한다. 건너뛴 챕터는 응답이 없어 갱신하지 않는다. 단계는 여기서 바꾸지 않는다.
+    const areaSeeds = opts.skipped
+      ? user.areaSeeds
+      : applyChapterRouting(user.areaSeeds ?? {}, chapter.id, opts.responses);
+
     if (next.finalized) {
       // 5챕터 완료 → 역코딩·비례 환산·컷오프로 단계 확정(은둔 체크 양성은 은둔 우선).
       // 단계가 그대로여도 첫 실행의 임시 제약을 걷어내고 확정 단계 기본값으로
@@ -66,6 +72,7 @@ export function KnowYourself() {
       const bands = stageBands(stage);
       updateUser({
         knowYourself: next,
+        areaSeeds,
         stage,
         baseBandLow: bands.low,
         baseBandHigh: bands.high,
@@ -84,7 +91,7 @@ export function KnowYourself() {
       setItemIndex(0);
       setPhase("intro");
     } else {
-      updateUser({ knowYourself: next });
+      updateUser({ knowYourself: next, areaSeeds });
       setPhase("done");
     }
   };

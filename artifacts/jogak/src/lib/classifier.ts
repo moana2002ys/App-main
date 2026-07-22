@@ -91,9 +91,54 @@ export function getStageTargetArea(stage: Stage | null | undefined, forbidden: s
   return AREAS.rhythm;
 }
 
-export function determineTodayArea(stage: Stage, _desiredArea: Area | 'unknown', forbidden: string[]): Area {
-  // (B) 오늘 챌린지 선택 영역 = 회복단계의 타깃 영역(고정).
-  // 데일리 설문의 활동 선택은 타깃 영역 안에서만 이뤄지므로 희망영역 값은 참고하지 않는다.
+// 영역 시드(한국어 태그) → 챌린지 영역 매핑. 자기돌봄은 신체·정서 시드 합산.
+// 은둔신호는 게이트 판단 전용 태그라 챌린지 영역 후보가 아니다.
+const SEED_AREA_MAP: Record<Area, string[]> = {
+  [AREAS.rhythm]: ['생활리듬'],
+  [AREAS.selfcare]: ['자기돌봄_신체', '자기돌봄_정서'],
+  [AREAS.relationship]: ['관계'],
+  [AREAS.social]: ['사회진입'],
+};
+
+// 시드 최상위(허용·게이트 통과) 영역. 시드가 비었거나 최고점 동률이면 null(→ 단계 타깃으로).
+export function topSeedArea(
+  seeds: Record<string, number> | null | undefined,
+  stage: Stage,
+  forbidden: string[],
+): Area | null {
+  if (!seeds) return null;
+  const allowed = getStageAllowedAreas(stage).filter((a) => isAreaEligible(a, forbidden));
+  let best: Area | null = null;
+  let bestScore = 0;
+  let tied = false;
+  for (const area of allowed) {
+    const score = SEED_AREA_MAP[area].reduce((s, k) => s + (seeds[k] ?? 0), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = area;
+      tied = false;
+    } else if (score === bestScore && score > 0) {
+      tied = true;
+    }
+  }
+  return tied || bestScore <= 0 ? null : best;
+}
+
+// 오늘 챌린지 영역 선택(v1.5 area_seeding 우선순위):
+// ① 데일리 희망영역(허용·게이트 통과 시) → ② '잘 모르겠어요'면 시드 최상위(게이트 통과) 영역
+// → ③ 시드가 비었거나 동률이면 회복단계 타깃 영역.
+export function determineTodayArea(
+  stage: Stage,
+  desiredArea: Area | 'unknown',
+  forbidden: string[],
+  areaSeeds?: Record<string, number> | null,
+): Area {
+  if (desiredArea !== 'unknown') {
+    const allowed = getStageAllowedAreas(stage);
+    if (allowed.includes(desiredArea) && isAreaEligible(desiredArea, forbidden)) return desiredArea;
+  }
+  const seeded = topSeedArea(areaSeeds, stage, forbidden);
+  if (seeded) return seeded;
   return getStageTargetArea(stage, forbidden);
 }
 

@@ -3,7 +3,9 @@ import { getFirstLaunchItems, getChapters, getReverseItems, getScaleMax } from "
 import {
   isSecluded, outingBurdenFromScQ1, severitySum, severityBand, bandFromSeverity,
   computeAreaSeeds, scoreFirstLaunch, scoreKnowYourself, finalStageFrom, deriveLegacyAnswers,
+  chapterSubscore, applyChapterRouting,
 } from "../src/lib/survey-scoring";
+import { determineTodayArea } from "../src/lib/classifier";
 
 let fails = 0;
 function eq(name: string, got: unknown, want: unknown) {
@@ -42,9 +44,9 @@ eq("band 낮음→L3~4", bandFromSeverity("낮음"), {low:3,high:4});
 eq("band 중간→L2", bandFromSeverity("중간"), {low:2,high:2});
 eq("band 높음→L1", bandFromSeverity("높음"), {low:1,high:1});
 
-// 영역 시드 예시(JSON 명세): ss5 응답 3 → 은둔심각도 +3.0, 관계 +1.5, 생활리듬 +3.0(가중치 1.0)
+// 영역 시드 예시(JSON 명세): ss5 응답 3 → 은둔신호 +3.0, 관계 +1.5, 생활리듬 +3.0(가중치 1.0)
 const seeds = computeAreaSeeds(items, { ss5: 3 });
-eq("seed ss5=3 은둔심각도", seeds["은둔심각도"], 3);
+eq("seed ss5=3 은둔신호", seeds["은둔신호"], 3);
 eq("seed ss5=3 관계", seeds["관계"], 1.5);
 eq("seed ss5=3 생활리듬", seeds["생활리듬"], 3);
 
@@ -108,5 +110,22 @@ eq("s3 위험군", s3.isolationLevel, "위험군");
 eq("s3 final at_risk", finalStageFrom(false, s3), "at_risk");
 
 eq("무응답 → 비위험군(0점)", scoreKnowYourself({}).isolationLevel, "비위험군");
+
+// 챕터별 라우팅(v1.5 reflection_timing): ch1 전 문항 0(역문항 k1·k2 → 4점씩 = 8점)
+// → 사회진입·자기돌봄_정서에 각각 +8. ch2 응답 없으면 시드 불변.
+const ch1resp: Record<string, number> = {}; chapters[0].items.forEach(i=>ch1resp[i.id]=0);
+eq("ch1 subscore 8", chapterSubscore("ch1", ch1resp), 8);
+const routed = applyChapterRouting({ 사회진입: 1 }, "ch1", ch1resp);
+eq("routing ch1 사회진입 +8", routed["사회진입"], 9);
+eq("routing ch1 자기돌봄_정서 +8", routed["자기돌봄_정서"], 8);
+eq("routing 응답없음 → 불변", applyChapterRouting({ 관계: 2 }, "ch2", {}), { 관계: 2 });
+
+// 오늘 영역 선택(v1.5 우선순위): ①희망영역 ②시드 최상위(잘모르겠음) ③단계 타깃
+eq("area ①희망영역 우선", determineTodayArea("not_at_risk", "selfcare", [], { 관계: 9 }), "selfcare");
+eq("area ②시드 최상위", determineTodayArea("not_at_risk", "unknown", [], { 관계: 9, 생활리듬: 3 }), "relationship");
+eq("area ②자기돌봄 신체+정서 합산", determineTodayArea("not_at_risk", "unknown", [], { 자기돌봄_신체: 4, 자기돌봄_정서: 4, 관계: 6 }), "selfcare");
+eq("area ②게이트 잠금 시 제외", determineTodayArea("not_at_risk", "unknown", ["관계대면"], { 관계: 9, 생활리듬: 3 }), "rhythm");
+eq("area ③시드 없음 → 단계 타깃", determineTodayArea("not_at_risk", "unknown", [], null), "social");
+eq("area ③동률 → 단계 타깃", determineTodayArea("not_at_risk", "unknown", [], { 관계: 5, 생활리듬: 5 }), "social");
 console.log(fails === 0 ? "\nALL PASS" : `\n${fails} FAILURES`);
 process.exit(fails === 0 ? 0 : 1);

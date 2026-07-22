@@ -7,6 +7,7 @@ import {
   getScaleMax,
   getOutingBurdenRules,
   getIsolationCutoffs,
+  getChapterAreaMap,
   FlatFirstLaunchItem,
 } from "./survey";
 
@@ -71,11 +72,11 @@ export function computeAreaSeeds(
   return seeds;
 }
 
-// 은둔심각도 시드가 높은지(관계·사회진입 게이트 잠금 기준).
+// 은둔신호 시드가 높은지(관계·사회진입 게이트 잠금 기준).
 // ss5·ss6·ss14 가중치 1.0 × 최대응답 3 = 최대 9점. 평균 '자주 그래(2)' 이상이면 높음.
 export const SECLUSION_SEVERITY_LOCK_THRESHOLD = 6;
 export function isSeclusionSeverityHigh(seeds: Record<string, number>): boolean {
-  return (seeds["은둔심각도"] ?? 0) >= SECLUSION_SEVERITY_LOCK_THRESHOLD;
+  return (seeds["은둔신호"] ?? 0) >= SECLUSION_SEVERITY_LOCK_THRESHOLD;
 }
 
 // 임시 단계: 은둔=true → 은둔(우선), 아니면 심각도 밴드 기반
@@ -139,7 +140,7 @@ export function scoreFirstLaunch(
   const stage = tempStageFrom(secluded, band);
   const bands = secluded ? { low: 1, high: 1 } : bandFromSeverity(band);
 
-  // 금지조건: 단계 기본 + 외출부담 + 은둔심각도 게이트 잠금(관계·사회진입)
+  // 금지조건: 단계 기본 + 외출부담 + 은둔신호 게이트 잠금(관계·사회진입)
   const forbidden = new Set(stageForbidden(stage));
   if (burden === "상") {
     forbidden.add("외출");
@@ -235,6 +236,40 @@ export function scoreKnowYourself(responses: SurveyResponses): KnowYourselfScore
     if (scaled100 >= c.min) isolationLevel = c.label as KnowYourselfScore["isolationLevel"];
   }
   return { answeredCount, rawTotal, maxPossible, scaled100, isolationLevel };
+}
+
+// 챕터 하위점수(역코딩 반영 합): 챕터 완료 시 라우팅 갱신에 사용
+export function chapterSubscore(chapterId: string, responses: SurveyResponses): number {
+  const reverse = getReverseItems();
+  const ch = getChapters().find((c) => c.id === chapterId);
+  if (!ch) return 0;
+  let sum = 0;
+  for (const item of ch.items) {
+    const v = responses[item.id];
+    if (v == null) continue;
+    const max = getScaleMax(item.scale);
+    sum += reverse.has(item.id) ? max - v : v;
+  }
+  return sum;
+}
+
+// 챕터별 라우팅 갱신(reflection_timing): 하위점수를 매핑된 영역 시드에 더한다.
+// '영역 우선순위'만 바뀌고 회복단계는 바꾸지 않는다. 관계·사회진입 게이트는 기존 금지조건이 그대로 적용.
+export function applyChapterRouting(
+  seeds: Record<string, number>,
+  chapterId: string,
+  responses: SurveyResponses,
+): Record<string, number> {
+  const map = getChapterAreaMap();
+  const areas = map[chapterId];
+  if (!areas || areas.length === 0) return seeds;
+  const sub = chapterSubscore(chapterId, responses);
+  if (sub <= 0) return seeds;
+  const next = { ...seeds };
+  for (const area of areas) {
+    next[area] = (next[area] ?? 0) + sub;
+  }
+  return next;
 }
 
 // 최종 단계 확정: 은둔체크 양성=은둔(우선), 60+=고도고립, 44~59=고립위험군, 0~43=비위험군

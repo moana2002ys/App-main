@@ -1,0 +1,50 @@
+{
+  "$description": "조각조각 디자인 토큰 — 값은 목업 소스에서 추출. 역할 설명은 design-principles.md §5 참조.",
+  "color": {
+    "background": {
+      "app": "#FDFBF7",
+      "outer": "#E5E0D8",
+      "surfaceTint": "#F5F1E6",
+      "yellowSoft": "#FFF9E5",
+      "orangeSoft": "#FFF4EC",
+      "mintSoft": "#EBF5F5",
+      "white": "#FFFFFF"
+    },
+    "text": {
+      "primary": "#4A443A",
+      "secondary": "#898273",
+      "yellowDeep": "#D4A017",
+      "mintDeep": "#458C8F"
+    },
+    "brand": {
+      "yellow": "#FFD55F",
+      "yellowDark": "#F2C33D"
+    },
+    "accent": {
+      "pleasureOrange": "#F4A261",
+      "masteryMint": "#A8DADC",
+      "sky": "#A2D2FF",
+      "coral": "#FFB5A7",
+      "alert": "#D96B5B"
+    },
+    "misc": {
+      "trackCream": "#F0E6C8",
+      "grayWarm": "#B8B2A3"
+    }
+  },
+  "radius": {
+    "card": "20px",
+    "cardLarge": "24px",
+    "button": "9999px",
+    "phoneFrame": "44px"
+  },
+  "layout": {
+    "designWidth": "390px",
+    "contentColumnWidth": "366px",
+    "screenPaddingX": "24px"
+  },
+  "voice": {
+    "register": "다정한 존댓말, 권유형(~해볼까요?)",
+    "forbidden": ["실패", "패널티/강등 표현", "명령형", "자책 유도 문구", "임상 어휘(치료·증상 등)"]
+  }
+}
