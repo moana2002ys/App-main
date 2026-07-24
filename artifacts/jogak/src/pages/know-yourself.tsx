@@ -78,8 +78,10 @@ export function KnowYourself() {
         baseBandHigh: bands.high,
         currentBandLow: bands.low,
         currentBandHigh: bands.high,
-        forbidden: stageForbidden(stage),
-        todayChallenges: null,
+        // 게이트는 절대 완화하지 않는다: 확정 단계 기본 금지조건과 기존 금지조건의
+        // 합집합만 허용(해제는 오직 4주 게이트 재확인의 자기보고로만).
+        forbidden: Array.from(new Set([...user.forbidden, ...stageForbidden(stage)])),
+        todaySlots: null,
       });
       setPhase("done");
       return;

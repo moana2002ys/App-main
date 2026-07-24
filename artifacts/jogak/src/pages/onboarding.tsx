@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { getFirstLaunchItems, firstLaunchIntro } from "@/lib/survey";
 import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
+import { emptyOnboardingWeek } from "@/lib/ba";
 
 const COLORS = [
   { id: "#FBBF24", name: "따뜻한 노랑" },
@@ -51,9 +52,12 @@ export function Onboarding() {
       baseBandHigh: result.baseBandHigh,
       currentBandLow: result.baseBandLow,
       currentBandHigh: result.baseBandHigh,
-      forbidden: result.forbidden
+      forbidden: result.forbidden,
+      // 설문 직후 바로 1주 고정 미션(온보딩 주간)으로 — 심리교육 카드는 생략(2026-07-24 결정)
+      phase: 'onboarding_week',
+      onboardingWeek: emptyOnboardingWeek(),
     });
-    setView("daily_checkin");
+    setView("onboarding_week");
   };
 
   return (

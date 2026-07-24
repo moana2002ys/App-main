@@ -4,12 +4,25 @@ import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Camera } from "lucide-react";
-import { useGenerateChallenges, useVerifyChallengePhoto } from "@workspace/api-client-react";
-import { determineTodayArea, capBandForArea, getDiversityAreas, Area, AREAS } from "@/lib/classifier";
-import { getFallbackChallenges } from "@/lib/fallback-bank";
+import { useVerifyChallengePhoto } from "@workspace/api-client-react";
+import { Area, AREAS } from "@/lib/classifier";
 import { knowYourselfCardCopy, getChapters } from "@/lib/survey";
-import { Challenge } from "@workspace/api-client-react";
 import { fileToDataUrl } from "@/lib/image";
+import {
+  DaySlot,
+  SLOT_BADGE,
+  SKIP_REASONS,
+  TIME_LABEL,
+  TOGGLE_LABEL,
+  Toggle,
+  TimeOfDay,
+  effectiveLevel,
+  defaultMinutesForLevel,
+  planTodaySlots,
+  planDepth,
+  nextStage,
+  summarizeOnboardingWeek,
+} from "@/lib/ba";
 
 const COMPLETION_PRAISES = [
   "오늘 이만큼 해낸 것, 정말 멋져요.",
@@ -24,130 +37,296 @@ function pickPraise(nickname?: string) {
   return nickname ? `${nickname}님, ${base}` : base;
 }
 
+const areaLabels: Record<string, string> = {
+  [AREAS.rhythm]: "하루 리듬",
+  [AREAS.selfcare]: "나 돌보기",
+  [AREAS.relationship]: "사람 관계",
+  [AREAS.social]: "사회 활동",
+};
+
+const PLACE_OPTIONS = ["방에서", "집 안에서", "집 근처에서"];
+const WITH_OPTIONS = ["혼자", "가족과", "다른 사람과"];
+
+const TOGGLES: Toggle[] = ["light", "normal", "challenge"];
+const TIMES: TimeOfDay[] = ["morning", "noon", "evening"];
+
+// 슬롯 카드 1장: 배지 + 미션 + 계획(토글·시간대·[어디서/누구와]) + 하기/건너뛰기
+function SlotCard({
+  slot,
+  onUpdate,
+  onComplete,
+  onPhoto,
+  onSkip,
+  showPlace,
+  showWith,
+  verifyingSlotId,
+}: {
+  slot: DaySlot;
+  onUpdate: (id: string, patch: Partial<DaySlot>) => void;
+  onComplete: (slot: DaySlot) => void;
+  onPhoto: (slot: DaySlot) => void;
+  onSkip: (slot: DaySlot, reason: string) => void;
+  showPlace: boolean;
+  showWith: boolean;
+  verifyingSlotId: string | null;
+}) {
+  const { user } = useAppStore();
+  const [skipOpen, setSkipOpen] = useState(false);
+  const stage = user.stage!;
+  const level = effectiveLevel(slot.level, slot.toggle, stage, slot.area);
+  const minutes = defaultMinutesForLevel(level);
+  const done = slot.status === "completed";
+  const skipped = slot.status === "skipped";
+  const verifying = verifyingSlotId === slot.id;
+
+  if (done || skipped) {
+    return (
+      <div className={`p-5 rounded-3xl border ${done ? "bg-primary/5 border-primary/20" : "bg-white/60 border-border/40"}`}>
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{done ? "🧩" : "🌙"}</span>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm ${done ? "text-foreground" : "text-muted-foreground line-through"} truncate`}>
+              {slot.title}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {done ? "오늘의 조각을 맞췄어요" : "오늘은 쉬어가기로 했어요"}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 hover:border-primary/30 transition-colors space-y-4"
+    >
+      <div className="flex justify-between items-start">
+        <span className="px-3 py-1 bg-secondary text-foreground text-xs rounded-full font-medium">
+          {slot.kind === "target" ? `${SLOT_BADGE.target} · ${areaLabels[slot.area]}` : SLOT_BADGE[slot.kind]}
+        </span>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 {minutes}분</span>
+      </div>
+
+      <h3 className="text-lg font-medium text-foreground leading-relaxed">{slot.title}</h3>
+
+      {/* 오늘의 시도 강도(토글) — 숫자·규정 언어 없이 */}
+      <div className="space-y-2.5">
+        <div className="flex gap-1.5">
+          {TOGGLES.map((t) => (
+            <button
+              key={t}
+              onClick={() => onUpdate(slot.id, { toggle: t })}
+              className={`flex-1 py-2 rounded-xl text-xs border transition-colors ${slot.toggle === t ? "bg-primary text-white border-primary" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
+            >
+              {TOGGLE_LABEL[t]}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5 items-center">
+          <span className="text-[11px] text-muted-foreground shrink-0 mr-1">언제쯤?</span>
+          {TIMES.map((t) => (
+            <button
+              key={t}
+              onClick={() => onUpdate(slot.id, { timeOfDay: slot.timeOfDay === t ? null : t })}
+              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.timeOfDay === t ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
+            >
+              {TIME_LABEL[t]}
+            </button>
+          ))}
+        </div>
+        {showPlace && (
+          <div className="flex gap-1.5 items-center flex-wrap">
+            <span className="text-[11px] text-muted-foreground shrink-0 mr-1">어디서?</span>
+            {PLACE_OPTIONS.map((p) => (
+              <button
+                key={p}
+                onClick={() => onUpdate(slot.id, { place: slot.place === p ? undefined : p })}
+                className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.place === p ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+        {showWith && (
+          <div className="flex gap-1.5 items-center flex-wrap">
+            <span className="text-[11px] text-muted-foreground shrink-0 mr-1">누구와?</span>
+            {WITH_OPTIONS.map((w) => (
+              <button
+                key={w}
+                onClick={() => onUpdate(slot.id, { withWhom: slot.withWhom === w ? undefined : w })}
+                className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.withWhom === w ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
+              >
+                {w}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {verifying ? (
+        <div className="flex items-center justify-center gap-3 py-2">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            className="w-6 h-6 border-4 border-secondary border-t-primary rounded-full"
+          />
+          <p className="text-muted-foreground text-sm animate-pulse">사진을 살펴보고 있어요...</p>
+        </div>
+      ) : skipOpen ? (
+        <div className="space-y-2">
+          <p className="text-sm text-foreground">어떤 게 발목을 잡았나요?</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SKIP_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => onSkip(slot, r)}
+                className="px-3 py-1.5 rounded-full text-xs border bg-white border-border/50 text-muted-foreground hover:bg-secondary/50 transition-colors"
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setSkipOpen(false)} className="text-xs text-muted-foreground underline">
+            아니에요, 다시 볼래요
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-xl border-primary/40 text-primary hover:bg-primary hover:text-white transition-colors"
+              onClick={() => onPhoto(slot)}
+            >
+              <Camera className="w-4 h-4 mr-1.5" />
+              사진 인증
+            </Button>
+            <Button className="flex-1 rounded-xl" onClick={() => onComplete(slot)}>
+              했어요
+            </Button>
+          </div>
+          <button
+            onClick={() => setSkipOpen(true)}
+            className="w-full text-center text-xs text-muted-foreground py-1 hover:text-foreground transition-colors"
+          >
+            오늘은 건너뛸래요
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export function Home() {
   const { user, updateUser, setView, nextDay, signOut } = useAppStore();
-  const generateMut = useGenerateChallenges();
   const verifyMut = useVerifyChallengePhoto();
-  const [loading, setLoading] = useState(!user.todayChallenges && !user.acceptedChallenge);
-  const [verifying, setVerifying] = useState(false);
+  const [verifyingSlotId, setVerifyingSlotId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const photoSlotRef = useRef<DaySlot | null>(null);
 
+  // 오늘의 슬롯 생성(로컬 시드뱅크 · 게이트·허용영역·한 활동 규칙 준수)
   useEffect(() => {
-    if (user.todayChallenges || user.acceptedChallenge || !user.stage || !user.onboarding || !user.daily) {
-      setLoading(false);
-      return;
-    }
-
-    const stage = user.stage;
-    // 이틀 연속 건너뛴 다음 날은 부담이 낮은 영역(생활리듬)부터 다시 시작
-    let targetArea = user.forceLowBurdenArea
-      ? AREAS.rhythm
-      : determineTodayArea(stage, user.daily.area as Area | 'unknown', user.forbidden, user.areaSeeds);
-
-    // 오늘 컨디션 반영 밴드(선택 영역 캡 적용 전) — 다양성 후보 밴드 산출의 기준값
-    let low = user.currentBandLow;
-    let high = user.currentBandHigh;
-
-    if (user.daily.condition === '바닥') {
-      low = Math.max(1, low - 1);
-      high = Math.max(1, high - 1);
-    }
-
-    // 다양성 후보 영역(선택 영역 제외 · 게이트 통과 · 영역별 캡 적용)
-    const diversityAreas = getDiversityAreas(stage, targetArea, user.forbidden, low, high);
-
-    // 선택 영역 캡 적용
-    const capped = capBandForArea(stage, targetArea, low, high);
-    const selLow = capped.low;
-    const selHigh = capped.high;
-
-    const payload = {
-      stage,
-      area: targetArea,
-      bandLow: selLow,
-      bandHigh: selHigh,
+    if (user.todaySlots || !user.stage || !user.daily || user.phase !== "cycle") return;
+    const earlyAvoidance = user.onboardingWeek
+      ? summarizeOnboardingWeek(user.onboardingWeek).earlyAvoidance
+      : false;
+    const boostActive =
+      user.interestBoostUntil !== null && user.dayCount <= user.interestBoostUntil;
+    const slots = planTodaySlots({
+      dayCount: user.dayCount,
+      stage: user.stage,
       forbidden: user.forbidden,
-      sleep: user.onboarding.sleep,
-      outing: user.onboarding.outing,
-      contact: user.onboarding.contact,
-      condition: user.daily.condition,
-      interest: user.daily.interest,
+      bandLow: user.currentBandLow,
+      bandHigh: user.currentBandHigh,
+      mood: user.daily.mood,
+      desiredArea: user.daily.area,
       activityId: user.daily.activityId,
-      diversityAreas
-    };
-
-    generateMut.mutate({ data: payload }, {
-      onSuccess: (data) => {
-        updateUser({ todayChallenges: data.challenges });
-        setLoading(false);
-      },
-      onError: () => {
-        // Fallback (심화판 시드 뱅크 기반 · 게이트·한 활동·컨디션 규칙 준수)
-        // 선택 영역 2개 + 다양성 후보 2개(후보 부족 시 선택 영역으로 보충)
-        const fallback = getFallbackChallenges(
-          { area: targetArea, bandLow: selLow, bandHigh: selHigh },
-          diversityAreas,
-          {
-            forbidden: user.forbidden,
-            condition: user.daily?.condition,
-            interest: user.daily?.interest,
-            preferredCategoryId: user.daily?.activityId,
-          },
-        );
-        updateUser({ todayChallenges: fallback });
-        setLoading(false);
-      }
+      areaSeeds: user.areaSeeds,
+      interests: boostActive ? user.interests : user.interests,
+      areaPM: user.areaPM,
+      skipLog: user.skipLog,
+      cycleStartDay: user.cycleStartDay ?? user.dayCount,
+      nudgeDefaultNormal: user.nudgeDefaultNormal,
+      earlyAvoidance,
+      pleasureBoostArea: user.pleasureBoostArea,
     });
+    updateUser({ todaySlots: slots });
+  }, [user.todaySlots, user.stage, user.daily, user.phase]);
 
-  }, [user.todayChallenges, user.acceptedChallenge]);
-
-  const acceptChallenge = (challenge: Challenge) => {
-    updateUser({ acceptedChallenge: challenge });
+  const patchSlot = (id: string, patch: Partial<DaySlot>) => {
+    updateUser({
+      todaySlots: (user.todaySlots ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
   };
 
-  const navToReflection = () => {
-    updateUser({ pendingPraise: pickPraise(user.nickname || undefined) });
+  const completeSlot = (slot: DaySlot) => {
+    updateUser({
+      reflectSlotId: slot.id,
+      pendingPraise: pickPraise(user.nickname || undefined),
+    });
     setView("reflection");
+  };
+
+  const skipSlot = (slot: DaySlot, reason: string) => {
+    updateUser({
+      todaySlots: (user.todaySlots ?? []).map((s) =>
+        s.id === slot.id ? { ...s, status: "skipped" as const, skipReason: reason } : s,
+      ),
+      skipLog: [
+        ...user.skipLog,
+        { day: user.dayCount, area: slot.area, title: slot.title, level: slot.level, reason },
+      ],
+    });
+  };
+
+  const requestPhoto = (slot: DaySlot) => {
+    photoSlotRef.current = slot;
+    fileInputRef.current?.click();
   };
 
   const onPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !user.acceptedChallenge) return;
-    setVerifying(true);
+    const slot = photoSlotRef.current;
+    if (!file || !slot) return;
+    setVerifyingSlotId(slot.id);
     try {
       const imageDataUrl = await fileToDataUrl(file);
       const res = await verifyMut.mutateAsync({
-        data: {
-          imageDataUrl,
-          title: user.acceptedChallenge.title,
-          nickname: user.nickname || undefined,
-        },
+        data: { imageDataUrl, title: slot.title, nickname: user.nickname || undefined },
       });
-      updateUser({ pendingPraise: res.praise });
+      updateUser({ pendingPraise: res.praise, reflectSlotId: slot.id });
     } catch {
       // 분석이 안 되어도 완료는 그대로 인정 (실패 처벌 없음)
-      updateUser({ pendingPraise: pickPraise(user.nickname || undefined) });
+      updateUser({ pendingPraise: pickPraise(user.nickname || undefined), reflectSlotId: slot.id });
     }
-    setVerifying(false);
+    setVerifyingSlotId(null);
     setView("reflection");
   };
 
-  const navToGrowth = () => {
-    setView("growth");
+  // 진급 제안 카드: 동의 시 다음 단계로(게이트는 그대로 유지 — 절대 완화 없음). 거절 시 2주 뒤.
+  const acceptPromotion = () => {
+    const ns = user.stage ? nextStage(user.stage) : null;
+    if (!ns) return;
+    updateUser({
+      stage: ns,
+      promotionOffer: false,
+      promotionDeclinedDay: null,
+      lastMessage: "새로운 조각이 열렸어요. 서두르지 않아도 괜찮아요.",
+    });
+  };
+  const declinePromotion = () => {
+    updateUser({ promotionOffer: false, promotionDeclinedDay: user.dayCount });
   };
 
   // '나 알아가기' 카드 — 5챕터를 모두 마치기 전까지 하루 1장 노출.
-  // 오늘 이미 한 챕터를 진행했으면 숨긴다. 점수·라벨은 어디에도 노출하지 않는다.
   const ky = user.knowYourself;
   const showKnowCard =
-    !!user.stage &&
-    !(ky?.finalized) &&
-    (ky?.lastChapterDay ?? null) !== user.dayCount;
-
-  const startKnowYourself = () => {
-    setView("know_yourself");
-  };
+    !!user.stage && !(ky?.finalized) && (ky?.lastChapterDay ?? null) !== user.dayCount;
 
   const knowCard = showKnowCard ? (
     <motion.div
@@ -161,30 +340,37 @@ export function Home() {
         </span>
         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 1분</span>
       </div>
-      <h3 className="text-lg font-medium text-foreground mb-2 leading-relaxed">
-        {knowYourselfCardCopy}
-      </h3>
+      <h3 className="text-lg font-medium text-foreground mb-2 leading-relaxed">{knowYourselfCardCopy}</h3>
       <p className="text-sm text-muted-foreground mb-6">
         {getChapters()[ky?.chapterIndex ?? 0]?.area_label ?? ""} 이야기를 들려줄래요?
       </p>
       <Button
         variant="outline"
         className="w-full rounded-xl hover:bg-primary hover:text-white transition-colors"
-        onClick={startKnowYourself}
+        onClick={() => setView("know_yourself")}
       >
         좋아요, 해볼래요
       </Button>
     </motion.div>
   ) : null;
 
+  const slots = user.todaySlots ?? [];
+  const depth = planDepth(user.stage);
+  const doneCount = slots.filter((s) => s.status === "completed").length;
+
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="px-6 pt-8 pb-4 flex justify-between items-center bg-white/50 backdrop-blur-sm border-b border-border/50 sticky top-0 z-20">
         <div>
-          <h2 className="text-sm font-medium text-muted-foreground">Day {user.dayCount} · {user.nickname || '조각이 친구'}님</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Day {user.dayCount} · {user.nickname || "조각이 친구"}님
+          </h2>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={navToGrowth} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-border/50 hover:bg-secondary/50 transition-colors">
+          <button
+            onClick={() => setView("growth")}
+            className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-border/50 hover:bg-secondary/50 transition-colors"
+          >
             <Character size="sm" className="scale-[0.4] -mx-4" />
             <span className="text-sm font-medium text-primary">{user.points} pt</span>
           </button>
@@ -200,137 +386,80 @@ export function Home() {
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto pb-24">
-        {loading ? (
-          <div className="h-full flex flex-col items-center justify-center space-y-6">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-              className="w-12 h-12 border-4 border-secondary border-t-primary rounded-full"
-            />
-            <p className="text-muted-foreground text-sm animate-pulse">오늘의 작은 조각을 찾고 있어요...</p>
+        <div className="space-y-6">
+          <div className="mb-8 pl-2 border-l-4 border-primary">
+            <h2 className="text-xl font-medium text-foreground">
+              {doneCount > 0 ? (
+                <>오늘 {doneCount}조각을 맞췄어요.<br />더 해도, 여기까지여도 좋아요.</>
+              ) : (
+                <>오늘의 조각들이에요.<br />끌리는 것 하나면 충분해요.</>
+              )}
+            </h2>
           </div>
-        ) : user.acceptedChallenge ? (
-          <div className="h-full flex flex-col items-center justify-center space-y-12">
-            <div className="text-center space-y-4">
-              <h3 className="text-2xl font-medium text-foreground leading-snug">
-                오늘의 조각
-              </h3>
-              <p className="text-muted-foreground">무리하지 말고, 천천히 해봐요.</p>
-            </div>
 
+          {user.promotionOffer && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-full bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-primary/5 p-6 rounded-3xl border border-primary/30 space-y-4"
             >
-              <div className="flex justify-between items-center text-sm text-muted-foreground">
-                <span className="px-3 py-1 bg-secondary rounded-full">{areaLabels[user.acceptedChallenge.area]}</span>
-                <span>약 {user.acceptedChallenge.minutes}분</span>
-              </div>
-              <p className="text-xl font-medium text-foreground leading-relaxed">
-                {user.acceptedChallenge.title}
+              <p className="text-lg font-medium text-foreground">다음 조각으로 넘어가볼까요?</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                요즘 꾸준히 조각을 맞춰왔더라고요. 준비가 됐다면 조금 더 넓은 세상의 조각들을 보여드릴게요.
+                지금 이대로도 충분히 좋아요.
               </p>
+              <div className="flex gap-2">
+                <Button className="flex-1 rounded-xl" onClick={acceptPromotion}>
+                  좋아요, 가볼래요
+                </Button>
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={declinePromotion}>
+                  아직은 여기가 좋아요
+                </Button>
+              </div>
             </motion.div>
+          )}
 
-            {verifying ? (
-              <div className="w-full flex flex-col items-center space-y-4 py-2">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full"
-                />
-                <p className="text-muted-foreground text-sm animate-pulse">사진을 살펴보고 있어요...</p>
-              </div>
-            ) : (
-              <div className="w-full space-y-3">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full rounded-2xl h-14 text-lg border-primary/40 text-primary hover:bg-primary hover:text-white transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Camera className="w-5 h-5 mr-2" />
-                  사진으로 인증하기
-                </Button>
-                <Button size="lg" className="w-full rounded-2xl h-14 text-lg shadow-md" onClick={navToReflection}>
-                  완료했어요
-                </Button>
-                <p className="text-xs text-muted-foreground text-center pt-1">
-                  사진은 확인 후 바로 사라져요. 저장되지 않아요.
-                </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onPhotoSelected}
-                  aria-label="인증 사진 선택"
-                />
-              </div>
-            )}
+          {knowCard}
 
-            {knowCard && <div className="w-full">{knowCard}</div>}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="mb-8 pl-2 border-l-4 border-primary">
-              <h2 className="text-xl font-medium text-foreground">
-                이 중에 하나만<br/>가볍게 해볼까요?
-              </h2>
-            </div>
+          <AnimatePresence>
+            {slots.map((slot) => (
+              <SlotCard
+                key={slot.id}
+                slot={slot}
+                onUpdate={patchSlot}
+                onComplete={completeSlot}
+                onPhoto={requestPhoto}
+                onSkip={skipSlot}
+                showPlace={depth.place}
+                showWith={depth.withWhom}
+                verifyingSlotId={verifyingSlotId}
+              />
+            ))}
+          </AnimatePresence>
 
-            {knowCard}
-            
-            <AnimatePresence>
-              {user.todayChallenges?.map((c, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.15 }}
-                  className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 hover:border-primary/30 transition-colors"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="px-3 py-1 bg-secondary text-foreground text-xs rounded-full font-medium">
-                      {areaLabels[c.area]}
-                    </span>
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 {c.minutes}분</span>
-                  </div>
-                  <h3 className="text-lg font-medium text-foreground mb-6 leading-relaxed">
-                    {c.title}
-                  </h3>
-                  <Button 
-                    variant="outline" 
-                    className="w-full rounded-xl hover:bg-primary hover:text-white transition-colors"
-                    onClick={() => acceptChallenge(c)}
-                  >
-                    이거 할래요
-                  </Button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+          <p className="text-xs text-muted-foreground text-center">
+            사진은 확인 후 바로 사라져요. 저장되지 않아요.
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPhotoSelected}
+            aria-label="인증 사진 선택"
+          />
+        </div>
 
-        {!loading && (
-          <div className="mt-8 pb-4 flex justify-center">
-            <Button
-              variant="ghost"
-              className="rounded-full text-muted-foreground hover:text-foreground bg-white/60 border border-border/50 px-6"
-              onClick={nextDay}
-            >
-              다음 날로 → (데모)
-            </Button>
-          </div>
-        )}
+        <div className="mt-8 pb-4 flex justify-center">
+          <Button
+            variant="ghost"
+            className="rounded-full text-muted-foreground hover:text-foreground bg-white/60 border border-border/50 px-6"
+            onClick={nextDay}
+          >
+            다음 날로 → (데모)
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
-
-const areaLabels: Record<string, string> = {
-  [AREAS.rhythm]: "하루 리듬",
-  [AREAS.selfcare]: "나 돌보기",
-  [AREAS.relationship]: "사람 관계",
-  [AREAS.social]: "사회 활동"
-};

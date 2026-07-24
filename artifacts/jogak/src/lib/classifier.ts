@@ -25,15 +25,6 @@ export interface OnboardingAnswers {
   area: Area | 'unknown'; 
 }
 
-export interface DailyAnswers {
-  condition: string; // 바닥 / 그저 그럼 / 괜찮음
-  area: Area | 'unknown';
-  interest: string;
-  // 설문 2번째 질문에서 고른 구체 활동의 시드뱅크 카테고리 id (예: "2-D").
-  // '잘 모르겠어요' 선택 시 undefined → 단계 기본 영역으로 처리.
-  activityId?: string;
-}
-
 export function determineStage(answers: OnboardingAnswers): { stage: Stage, baseBandLow: number, baseBandHigh: number, forbidden: string[] } {
   // (A) 회복 단계 판정 — 온보딩 직후 1회
   // - 외출부담=상 AND 대인=혼자        → 은둔        (기본밴드 L1, 금지: 외출·대면·전화·관계대면)
@@ -176,43 +167,4 @@ export function getDiversityAreas(
       const capped = capBandForArea(stage, a, low, high);
       return { area: a, bandLow: capped.low, bandHigh: capped.high };
     });
-}
-
-export function adjustBandNextDay(
-  currentBandLow: number, 
-  currentBandHigh: number,
-  completed: boolean,
-  burden: '😌' | '😐' | '😣' | null, // 쉬웠어요 / 적당 / 버거웠어요
-  consecutiveSkips: number
-): { bandLow: number, bandHigh: number, message?: string } {
-  let low = currentBandLow;
-  let high = currentBandHigh;
-  let message;
-
-  if (completed && burden) {
-    if (burden === '😌') {
-      low = Math.min(5, low + 1);
-      high = Math.min(5, high + 1);
-      message = "조금씩 익숙해지고 있네요. 오늘은 살짝 다른 걸 해볼까요?";
-    } else if (burden === '😐') {
-      // keep
-    } else if (burden === '😣') {
-      // keep or -1. let's do -1 safely
-      low = Math.max(1, low - 1);
-      high = Math.max(1, high - 1);
-      message = "어제는 조금 버거웠군요. 오늘은 조금 더 가볍게 가볼까요?";
-    }
-  } else {
-    // missed
-    low = Math.max(1, low - 1);
-    high = Math.max(1, high - 1);
-    
-    if (consecutiveSkips >= 2) {
-      low = 1;
-      high = 1;
-      message = "괜찮아요, 쉬어가는 날도 있는 법이죠. 아주 작은 조각부터 다시 시작해봐요.";
-    }
-  }
-
-  return { bandLow: low, bandHigh: Math.max(low, high), message };
 }
