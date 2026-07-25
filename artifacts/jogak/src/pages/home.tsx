@@ -20,6 +20,7 @@ import {
   effectiveLevel,
   defaultMinutesForLevel,
   toggleDefaultReason,
+  placeOptionsForSlot,
   planTodaySlots,
   planDepth,
   nextStage,
@@ -46,7 +47,6 @@ const areaLabels: Record<string, string> = {
   [AREAS.social]: "사회 활동",
 };
 
-const PLACE_OPTIONS = ["내 방", "거실", "집 밖"];
 const WITH_OPTIONS = ["혼자", "가족과", "다른 사람과"];
 
 const TOGGLES: Toggle[] = ["light", "normal", "challenge"];
@@ -59,9 +59,8 @@ function SelectableSlotCard({
   selected,
   onSelect,
   onUpdate,
-  showPlace,
   showWith,
-  places,
+  forbidden,
   mood,
   nudgeDefaultNormal,
   stage,
@@ -70,15 +69,16 @@ function SelectableSlotCard({
   selected: boolean;
   onSelect: () => void;
   onUpdate: (id: string, patch: Partial<DaySlot>) => void;
-  showPlace: boolean;
   showWith: boolean;
-  places: string[];
+  forbidden: string[];
   mood: number;
   nudgeDefaultNormal: boolean;
   stage: NonNullable<ReturnType<typeof useAppStore>["user"]["stage"]>;
 }) {
   const level = effectiveLevel(slot.level, slot.toggle, stage, slot.area);
   const minutes = defaultMinutesForLevel(level);
+  // 챌린지 종류에 따라 공간 선택지의 범위를 다르게 제시
+  const places = placeOptionsForSlot(slot, forbidden);
 
   return (
     <motion.div
@@ -162,26 +162,26 @@ function SelectableSlotCard({
               </div>
             </div>
 
-            {showPlace && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">어디서 해볼까요?</p>
-                <div className="flex gap-1.5">
-                  {places.map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => onUpdate(slot.id, { place: slot.place === p ? undefined : p })}
-                      className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
-                        slot.place === p
-                          ? "bg-secondary border-primary/50 text-foreground font-medium"
-                          : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">어디서 해볼까요?</p>
+              <div className="flex gap-1.5">
+                {places.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() =>
+                      onUpdate(slot.id, { place: slot.place === p.label ? undefined : p.label })
+                    }
+                    className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
+                      slot.place === p.label
+                        ? "bg-secondary border-primary/50 text-foreground font-medium"
+                        : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
+                    }`}
+                  >
+                    {p.emoji} {p.label}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
 
             {showWith && (
               <div className="space-y-2">
@@ -449,10 +449,6 @@ export function Home() {
 
   const slots = user.todaySlots ?? [];
   const depth = planDepth(user.stage);
-  // 외출 게이트가 있으면 '집 밖'은 권하지 않는다
-  const places = user.forbidden.includes("외출")
-    ? PLACE_OPTIONS.filter((p) => p !== "집 밖")
-    : PLACE_OPTIONS;
   const proposed = slots.filter((s) => s.status === "proposed");
   const active = slots.filter((s) => s.status !== "proposed");
   const doneCount = slots.filter((s) => s.status === "completed").length;
@@ -546,9 +542,8 @@ export function Home() {
                     selected={selectedId === slot.id}
                     onSelect={() => setSelectedId(slot.id)}
                     onUpdate={patchSlot}
-                    showPlace={depth.place}
                     showWith={depth.withWhom}
-                    places={places}
+                    forbidden={user.forbidden}
                     mood={mood}
                     nudgeDefaultNormal={user.nudgeDefaultNormal}
                     stage={user.stage!}

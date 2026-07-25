@@ -104,6 +104,45 @@ export const SLOT_REASON: Record<SlotKind, string> = {
   avoidance: "요즘 미뤄뒀던 조각을 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.",
 };
 
+// "어디서 해볼까요?" 선택지 — 챌린지 종류에 따라 공간 범위를 다르게 제시.
+// 실외형이면 집 밖의 단계적 공간, 부엌형이면 부엌 포함, 그 외 기본 내 방/거실/집 밖.
+// 외출 게이트가 있으면 실외 선택지는 권하지 않는다(활동 자체는 게이트로 이미 걸러짐).
+export interface PlaceOption {
+  label: string;
+  emoji: string;
+}
+
+const OUTDOOR_TITLE = /밖|산책|걷|외출|현관|편의점|공원|바깥|나가/;
+const KITCHEN_TITLE = /요리|밥|식사|설거지|물 한 잔|차 한 잔|마시/;
+
+export function placeOptionsForSlot(
+  slot: { area: Area; title: string },
+  forbidden: string[],
+): PlaceOption[] {
+  const outdoorGated = forbidden.includes("외출");
+  if (OUTDOOR_TITLE.test(slot.title) && !outdoorGated) {
+    // 실외형: 부담이 낮은 순서의 단계적 공간
+    return [
+      { label: "현관 앞", emoji: "🚪" },
+      { label: "집 근처", emoji: "🏘️" },
+      { label: "공원·산책로", emoji: "🌳" },
+    ];
+  }
+  if (KITCHEN_TITLE.test(slot.title)) {
+    return [
+      { label: "부엌", emoji: "🫖" },
+      { label: "거실", emoji: "🛋️" },
+      { label: "내 방", emoji: "🛏️" },
+    ];
+  }
+  const base: PlaceOption[] = [
+    { label: "내 방", emoji: "🛏️" },
+    { label: "거실", emoji: "🛋️" },
+    { label: "집 밖", emoji: "🌳" },
+  ];
+  return outdoorGated ? base.filter((p) => p.label !== "집 밖") : base;
+}
+
 // 토글 기본값을 왜 그렇게 추천했는지 한 줄 설명(선택은 언제나 사용자 몫).
 export function toggleDefaultReason(mood: number, nudgeDefaultNormal: boolean): string {
   if (mood <= 2) return "오늘은 마음이 조금 무거운 날이라, '가볍게'부터 추천해요.";
