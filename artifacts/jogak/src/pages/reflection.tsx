@@ -335,12 +335,15 @@ export function Reflection() {
 
               {/* 메모(선택) */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3">
-                <p className="text-sm font-medium text-foreground">기억하고 싶은 순간 (선택)</p>
+                <p className="text-xs text-muted-foreground">기억하고 싶은 순간 (선택)</p>
+                <p className="text-sm font-medium text-foreground leading-relaxed">
+                  {slot.reflectQ || "해보니 어땠나요? 아주 짧게라도 좋아요."}
+                </p>
                 <textarea
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   className="w-full bg-secondary/30 rounded-2xl p-4 min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground text-sm"
-                  placeholder={slot.reflectQ || "한 단어도 좋고, 적지 않아도 괜찮아요."}
+                  placeholder="한 단어도 좋고, 적지 않아도 괜찮아요."
                 />
               </div>
 
