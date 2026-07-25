@@ -11,6 +11,32 @@ import {
   summarizeOnboardingWeek,
   OnboardingDayEntry,
 } from "@/lib/ba";
+import { getFirstLaunchItems } from "@/lib/survey";
+import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
+
+// Day1 심리교육 카드 — 진단·낙인 언어 없이, '상태'와 '작은 행동'의 이야기만.
+const LEARN_CARDS = [
+  {
+    emoji: "🌙",
+    title: "혼자의 시간이 길어질 때",
+    body: "방 안에서 보내는 시간이 길어지는 건 누구에게나 일어날 수 있는 일이에요. 게으름이나 성격의 문제가 아니라, 마음이 스스로를 지키려는 자연스러운 반응이에요.",
+  },
+  {
+    emoji: "🔄",
+    title: "쉼과 고립의 차이",
+    body: "쉼은 에너지를 다시 채워주지만, 혼자의 시간이 너무 길어지면 오히려 기운이 더 빠지기도 해요. 하고 싶은 일이 줄고, 사람을 만나는 게 점점 더 무거워지는 식으로요.",
+  },
+  {
+    emoji: "🧩",
+    title: "회복은 아주 작은 행동에서",
+    body: "기분이 나아지길 기다렸다가 움직이는 게 아니라, 아주 작은 행동이 먼저 기분을 조금씩 움직여줘요. 물 한 잔, 창문 열기 같은 정말 작은 조각부터요.",
+  },
+  {
+    emoji: "🤝",
+    title: "조각조각이 함께해요",
+    body: "여기서는 잘하고 못하고를 재지 않아요. 하루에 하나, 지금의 나에게 맞는 작은 조각을 함께 고르고, 해낸 만큼만 천천히 넓혀갈 거예요.",
+  },
+];
 
 const INTERESTS = [
   "게임", "음악", "동물", "식물", "요리·먹는 것", "책·글", "스포츠", "그림·만들기",
@@ -23,7 +49,7 @@ const PM_TAPS = [
   { v: 5, label: "좋았어요" },
 ];
 
-type Step = "journey" | "mood" | "mission" | "pm" | "interests" | "ready";
+type Step = "journey" | "mood" | "mission" | "learn" | "survey" | "pm" | "interests" | "ready";
 
 // 온보딩 1주: 지정된 하루 1개 초소형 미션이라 '오늘 뭘 할까'가 아니라
 // '7일 여정 위 어디쯤인가'가 보여야 한다 → 타임라인이 기본 화면.
@@ -37,6 +63,11 @@ export function OnboardingWeek() {
   const [mood, setMood] = useState<number | null>(null);
   const [p, setP] = useState<number | null>(null);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  // Day1 심리교육 / Day2 상황 체크리스트 진행 상태
+  const [learnIndex, setLearnIndex] = useState(0);
+  const [ssIndex, setSsIndex] = useState(0);
+  const [ssResponses, setSsResponses] = useState<SurveyResponses>({});
+  const ssItems = getFirstLaunchItems().filter((i) => i.moduleId === "seclusion_status");
 
   const entries = user.onboardingWeek?.entries ?? week.entries;
   const todayEntry = entries.find((e) => e.day === dayIdx) ?? null;
@@ -83,6 +114,28 @@ export function OnboardingWeek() {
   };
 
   const entryBase = { day: dayIdx, mood: mood ?? 3 };
+
+  // Day2 체크리스트 완료: 온보딩 응답과 합쳐 정식 첫 실행 채점으로 갱신.
+  // 금지조건은 절대 완화하지 않는다 — 기존 게이트와 새 결과의 합집합만 허용.
+  const finishSurveyMission = (finalResponses: SurveyResponses) => {
+    const allItems = getFirstLaunchItems();
+    const merged = { ...(user.surveyResponses ?? {}), ...finalResponses };
+    const result = scoreFirstLaunch(allItems, merged);
+    const legacy = deriveLegacyAnswers(merged, result);
+    updateUser({
+      surveyResponses: merged,
+      secluded: result.secluded,
+      areaSeeds: result.areaSeeds,
+      onboarding: legacy,
+      stage: result.stage,
+      baseBandLow: result.baseBandLow,
+      baseBandHigh: result.baseBandHigh,
+      currentBandLow: result.baseBandLow,
+      currentBandHigh: result.baseBandHigh,
+      forbidden: Array.from(new Set([...user.forbidden, ...result.forbidden])),
+    });
+    setStep("pm");
+  };
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
@@ -255,9 +308,20 @@ export function OnboardingWeek() {
                 <Button
                   size="lg"
                   className="w-full rounded-2xl h-14 text-lg"
-                  onClick={() => setStep("pm")}
+                  onClick={() => {
+                    if (mission.kind === "learn") {
+                      setLearnIndex(0);
+                      setStep("learn");
+                    } else if (mission.kind === "survey") {
+                      setSsIndex(0);
+                      setSsResponses({});
+                      setStep("survey");
+                    } else {
+                      setStep("pm");
+                    }
+                  }}
                 >
-                  했어요
+                  {mission.kind ? "시작해볼게요" : "했어요"}
                 </Button>
                 <Button
                   size="lg"
@@ -267,6 +331,75 @@ export function OnboardingWeek() {
                 >
                   오늘은 건너뛸래요
                 </Button>
+              </div>
+            </motion.div>
+          ) : step === "learn" ? (
+            <motion.div
+              key={`learn-${learnIndex}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex-1 flex flex-col justify-center space-y-6"
+            >
+              <div className="text-center space-y-2">
+                <h2 className="text-xl font-medium text-foreground">고립과 은둔, 가볍게 알아보기</h2>
+                <p className="text-sm text-muted-foreground">{learnIndex + 1} / {LEARN_CARDS.length}</p>
+              </div>
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-4 text-center">
+                <span className="text-4xl">{LEARN_CARDS[learnIndex]!.emoji}</span>
+                <h3 className="text-lg font-medium text-foreground">{LEARN_CARDS[learnIndex]!.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{LEARN_CARDS[learnIndex]!.body}</p>
+              </div>
+              <div className="flex justify-center gap-1.5">
+                {LEARN_CARDS.map((_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full ${i === learnIndex ? "bg-primary" : "bg-border"}`} />
+                ))}
+              </div>
+              <Button
+                size="lg"
+                className="w-full rounded-2xl h-14"
+                onClick={() => {
+                  if (learnIndex < LEARN_CARDS.length - 1) setLearnIndex(learnIndex + 1);
+                  else setStep("pm");
+                }}
+              >
+                {learnIndex < LEARN_CARDS.length - 1 ? "다음" : "다 읽었어요"}
+              </Button>
+            </motion.div>
+          ) : step === "survey" ? (
+            <motion.div
+              key={`survey-${ssIndex}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex-1 flex flex-col justify-center space-y-6"
+            >
+              <div className="h-1.5 bg-secondary/60 rounded-full overflow-hidden" aria-hidden="true">
+                <div
+                  className="h-full bg-primary/50 rounded-full transition-all"
+                  style={{ width: `${Math.round(((ssIndex + 1) / ssItems.length) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-center"><Character size="sm" showItems={false} /></div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 text-foreground text-lg leading-relaxed">
+                {ssItems[ssIndex]?.q}
+              </div>
+              <div className="space-y-3">
+                {(ssItems[ssIndex]?.options ?? []).map((opt) => (
+                  <Button
+                    key={`${ssItems[ssIndex]!.id}-${opt.v}`}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal"
+                    onClick={() => {
+                      const next = { ...ssResponses, [ssItems[ssIndex]!.id]: opt.v };
+                      setSsResponses(next);
+                      if (ssIndex < ssItems.length - 1) setSsIndex(ssIndex + 1);
+                      else finishSurveyMission(next);
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
               </div>
             </motion.div>
           ) : step === "pm" ? (

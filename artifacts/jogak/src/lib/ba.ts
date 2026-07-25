@@ -93,9 +93,24 @@ export type SlotKind = "target" | "pleasure" | "avoidance";
 
 export const SLOT_BADGE: Record<SlotKind, string> = {
   target: "내가 고른 영역",
-  pleasure: "최근 즐거움이 컸던 쪽이에요",
-  avoidance: "계속 미뤄왔던 조각, 더 작게 쪼갰어요",
+  pleasure: "즐거움 활동",
+  avoidance: "조금 어려워했던 활동",
 };
+
+// 왜 이 조각을 추천했는지(BA 근거) — 낙인 언어 없이 이유만.
+export const SLOT_REASON: Record<SlotKind, string> = {
+  target: "오늘 체크인에서 고른 방향과 이어지는 조각이에요.",
+  pleasure: "최근 즐겁게 해낸 조각과 닮았어요. 즐거움은 회복의 연료거든요.",
+  avoidance: "요즘 미뤄뒀던 조각을 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.",
+};
+
+// 토글 기본값을 왜 그렇게 추천했는지 한 줄 설명(선택은 언제나 사용자 몫).
+export function toggleDefaultReason(mood: number, nudgeDefaultNormal: boolean): string {
+  if (mood <= 2) return "오늘은 마음이 조금 무거운 날이라, '가볍게'부터 추천해요.";
+  if (nudgeDefaultNormal)
+    return "'가볍게'를 이틀 연속 잘 해내서, 이번엔 '보통'부터 추천해요.";
+  return "처음엔 부담 없이, '가볍게'부터 시작하길 추천해요.";
+}
 
 export type TimeOfDay = "morning" | "noon" | "evening";
 export const TIME_LABEL: Record<TimeOfDay, string> = {
@@ -122,6 +137,7 @@ export interface DaySlot {
   // 사후 평정(완료 시)
   p?: number; // 0–10 원값
   m?: number; // 0–10 원값
+  memo?: string; // "기억하고 싶은 순간" (선택)
   skipReason?: string;
 }
 
@@ -284,10 +300,10 @@ export interface SkipEntry {
 }
 
 export const SKIP_REASONS = [
-  "시간이 없었어요",
-  "시작이 무거웠어요",
-  "기분이 가라앉았어요",
-  "깜빡했어요",
+  "너무 피곤했어요",
+  "잊어버렸어요",
+  "시간이 부족했어요",
+  "다른 일이 생겼어요",
   "그냥 하기 싫었어요",
 ];
 
@@ -558,16 +574,18 @@ export interface OnboardingMission {
   title: string;
   minutes: number;
   area: Area;
+  // Day1 심리교육 / Day2 상황 체크리스트(설문 미션) / 나머지 초소형 미션
+  kind?: "learn" | "survey";
   // 게이트: 외출 금지 사용자용 대체 문구
   outdoorAlt?: string;
 }
 
 export const ONBOARDING_WEEK: OnboardingMission[] = [
-  { day: 1, title: "물 한 잔 마시기", minutes: 1, area: AREAS.rhythm },
-  { day: 2, title: "커튼 걷고 잠깐 환기하기", minutes: 2, area: AREAS.rhythm },
-  { day: 3, title: "이부자리 한 번 정리하기", minutes: 2, area: AREAS.rhythm },
-  { day: 4, title: "1분 기지개·스트레칭", minutes: 1, area: AREAS.selfcare },
-  { day: 5, title: "좋아하는 노래 1곡 듣기", minutes: 4, area: AREAS.selfcare },
+  { day: 1, title: "고립과 은둔, 가볍게 알아보기", minutes: 3, area: AREAS.selfcare, kind: "learn" },
+  { day: 2, title: "내 상황 돌아보기 체크리스트", minutes: 5, area: AREAS.selfcare, kind: "survey" },
+  { day: 3, title: "물 한 잔 마시기", minutes: 1, area: AREAS.rhythm },
+  { day: 4, title: "커튼 걷고 잠깐 환기하기", minutes: 2, area: AREAS.rhythm },
+  { day: 5, title: "1분 기지개·스트레칭", minutes: 1, area: AREAS.selfcare },
   {
     day: 6,
     title: "현관문 밖에 잠깐 나갔다 오기",
@@ -575,7 +593,7 @@ export const ONBOARDING_WEEK: OnboardingMission[] = [
     area: AREAS.rhythm,
     outdoorAlt: "창밖 풍경 1분 바라보기",
   },
-  { day: 7, title: "오늘의 나에게 한 줄 남기기", minutes: 2, area: AREAS.selfcare },
+  { day: 7, title: "좋아하는 노래 1곡 듣기", minutes: 4, area: AREAS.selfcare },
 ];
 
 export function getOnboardingMission(day: number, forbidden: string[]): OnboardingMission {

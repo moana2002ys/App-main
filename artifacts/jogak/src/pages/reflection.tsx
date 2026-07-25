@@ -1,25 +1,30 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Camera, Check } from "lucide-react";
 import { applyCompletion, EarnedReward } from "@/lib/rewards";
 import { Character } from "@/components/Character";
 import { BadgeIcon } from "@/components/BadgeIcon";
-import { microFeedback } from "@/lib/ba";
+import { microFeedback, SKIP_REASONS } from "@/lib/ba";
+import { useVerifyChallengePhoto } from "@workspace/api-client-react";
+import { fileToDataUrl } from "@/lib/image";
 
-// 사후 평정 v2: 부담 이모지 폐지 → P(즐거움)·M(뿌듯함) 0–10 슬라이더.
-// 초기값 표시는 중앙이지만 '미조작'이면 내부 3으로 저장(중앙값 편향 방지).
-// 밴드 조정은 여기서 하지 않는다 — 다음 날 아침(nextDay)에 하루 전체로 판정.
-function PMSlider({
-  label,
+// 사후 평정 v3: 한 페이지 스크롤 — P·M 슬라이더 카드 + 메모(선택) + 사진 인증(선택).
+// '미조작'이면 내부 3으로 저장(중앙값 편향 방지). 밴드 조정은 다음 날 아침에.
+function PMSliderCard({
+  emoji,
+  title,
+  question,
   hintLow,
   hintHigh,
   value,
   touched,
   onChange,
 }: {
-  label: string;
+  emoji: string;
+  title: string;
+  question: string;
   hintLow: string;
   hintHigh: string;
   value: number;
@@ -27,13 +32,17 @@ function PMSlider({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <p className="text-base text-foreground">{label}</p>
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{emoji}</span>
+          <p className="text-base font-medium text-foreground">{title}</p>
+        </div>
         <span className={`text-sm ${touched ? "text-primary font-medium" : "text-muted-foreground"}`}>
           {touched ? value : "—"}
         </span>
       </div>
+      <p className="text-sm text-muted-foreground">{question}</p>
       <input
         type="range"
         min={0}
@@ -42,7 +51,7 @@ function PMSlider({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-[var(--primary,#F59E0B)] h-2 cursor-pointer"
-        aria-label={label}
+        aria-label={title}
       />
       <div className="flex justify-between text-[11px] text-muted-foreground">
         <span>{hintLow}</span>
@@ -54,13 +63,19 @@ function PMSlider({
 
 export function Reflection() {
   const { user, updateUser, setView } = useAppStore();
-  const [step, setStep] = useState(0);
+  const verifyMut = useVerifyChallengePhoto();
 
   const [p, setP] = useState(5);
   const [m, setM] = useState(5);
   const [pTouched, setPTouched] = useState(false);
   const [mTouched, setMTouched] = useState(false);
+  const [memo, setMemo] = useState("");
   const [earned, setEarned] = useState<EarnedReward[]>([]);
+  const [celebrating, setCelebrating] = useState(false);
+  const [skipMode, setSkipMode] = useState(false);
+  const [photoAttached, setPhotoAttached] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const slot = (user.todaySlots ?? []).find((s) => s.id === user.reflectSlotId) ?? null;
 
@@ -70,6 +85,24 @@ export function Reflection() {
   }
 
   const feedbackLine = microFeedback(user.dayRecords, user.dayCount);
+
+  const onPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setVerifying(true);
+    try {
+      const imageDataUrl = await fileToDataUrl(file);
+      const res = await verifyMut.mutateAsync({
+        data: { imageDataUrl, title: slot.title, nickname: user.nickname || undefined },
+      });
+      updateUser({ pendingPraise: res.praise });
+    } catch {
+      // 분석이 안 되어도 인증은 그대로 인정 (실패 처벌 없음)
+    }
+    setVerifying(false);
+    setPhotoAttached(true);
+  };
 
   const handleFinish = () => {
     // 미조작 시 내부 3 저장(0–10 원값 기준)
@@ -99,7 +132,15 @@ export function Reflection() {
 
     updateUser({
       todaySlots: (user.todaySlots ?? []).map((s) =>
-        s.id === slot.id ? { ...s, status: "completed" as const, p: pFinal, m: mFinal } : s,
+        s.id === slot.id
+          ? {
+              ...s,
+              status: "completed" as const,
+              p: pFinal,
+              m: mFinal,
+              memo: memo.trim() || undefined,
+            }
+          : s,
       ),
       reflectSlotId: null,
       streakDays: user.streakDays + 1,
@@ -116,102 +157,49 @@ export function Reflection() {
 
     if (reward.earned.length > 0) {
       setEarned(reward.earned);
-      setStep(2); // 축하 화면
+      setCelebrating(true);
     } else {
       setView("home");
     }
   };
 
+  // "혹시 조각을 건너뛰었나요?" — 완료를 착오로 눌렀을 때의 되돌림 경로.
+  const handleSkip = (reason: string) => {
+    updateUser({
+      todaySlots: (user.todaySlots ?? []).map((s) =>
+        s.id === slot.id ? { ...s, status: "skipped" as const, skipReason: reason } : s,
+      ),
+      reflectSlotId: null,
+      pendingPraise: undefined,
+      skipLog: [
+        ...user.skipLog,
+        { day: user.dayCount, area: slot.area, title: slot.title, level: slot.level, reason },
+      ],
+    });
+    setView("home");
+  };
+
   return (
-    <div className="flex flex-col h-full bg-background p-6">
-      <div className="h-10 flex items-center">
-        <button
-          onClick={() => (step > 0 && step < 2 ? setStep(step - 1) : setView("home"))}
-          aria-label="뒤로 가기"
-          className="p-2 -ml-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-      </div>
-      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+    <div className="flex flex-col h-full bg-background overflow-y-auto">
+      <div className="max-w-sm mx-auto w-full p-6">
+        <div className="h-10 flex items-center">
+          <button
+            onClick={() => setView("home")}
+            aria-label="뒤로 가기"
+            className="p-2 -ml-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        </div>
+
         <AnimatePresence mode="wait">
-          {step === 0 ? (
-            <motion.div
-              key="step0"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="space-y-2 text-center">
-                <h2 className="text-2xl font-medium text-foreground leading-snug">
-                  {user.pendingPraise || "수고했어요!"}
-                </h2>
-                <p className="text-muted-foreground">방금 한 건 어땠는지, 손끝으로만 알려주세요.</p>
-              </div>
-
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-8">
-                <PMSlider
-                  label="즐거움은 어땠어요?"
-                  hintLow="전혀"
-                  hintHigh="아주 많이"
-                  value={p}
-                  touched={pTouched}
-                  onChange={(v) => { setP(v); setPTouched(true); }}
-                />
-                <PMSlider
-                  label="뿌듯함(해냈다는 느낌)은요?"
-                  hintLow="전혀"
-                  hintHigh="아주 많이"
-                  value={m}
-                  touched={mTouched}
-                  onChange={(v) => { setM(v); setMTouched(true); }}
-                />
-                <p className="text-[11px] text-muted-foreground text-center">
-                  안 움직여도 괜찮아요. 그대로 넘어가도 돼요.
-                </p>
-                <Button size="lg" className="w-full rounded-2xl h-13" onClick={() => setStep(1)}>
-                  다음
-                </Button>
-              </div>
-
-              {feedbackLine && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-sm text-primary text-center"
-                >
-                  {feedbackLine}
-                </motion.p>
-              )}
-            </motion.div>
-          ) : step === 1 ? (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 text-center space-y-6">
-                <p className="text-lg font-medium text-foreground">{slot.reflectQ}</p>
-                <textarea
-                  className="w-full bg-secondary/30 rounded-2xl p-4 min-h-[120px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
-                  placeholder="한 단어도 좋고, 적지 않아도 괜찮아요."
-                />
-                <Button size="lg" className="w-full rounded-2xl h-14" onClick={handleFinish}>
-                  기록 완료하기
-                </Button>
-              </div>
-            </motion.div>
-          ) : (
+          {celebrating ? (
             <motion.div
               key="celebrate"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-8 text-center"
+              className="space-y-8 text-center pt-6"
             >
               <div className="space-y-2">
                 <motion.p
@@ -256,6 +244,144 @@ export function Reflection() {
               <Button size="lg" className="w-full rounded-2xl h-14" onClick={() => setView("home")}>
                 좋아요
               </Button>
+            </motion.div>
+          ) : skipMode ? (
+            <motion.div
+              key="skip"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pt-6"
+            >
+              <div className="text-center space-y-2">
+                <span className="text-4xl">🫂</span>
+                <h2 className="text-xl font-medium text-foreground">괜찮아요, 그럴 수 있어요</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  건너뛴 것도 소중한 기록이에요.<br />어떤 게 발목을 잡았는지만 알려주세요.
+                </p>
+              </div>
+              <div className="space-y-2.5">
+                {SKIP_REASONS.map((r) => (
+                  <Button
+                    key={r}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
+                    onClick={() => handleSkip(r)}
+                  >
+                    {r}
+                  </Button>
+                ))}
+              </div>
+              <button
+                onClick={() => setSkipMode(false)}
+                className="w-full text-center text-sm text-muted-foreground underline"
+              >
+                돌아가기
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="main"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="space-y-6 pb-10"
+            >
+              {/* 헤더 */}
+              <div className="text-center space-y-3 pt-2">
+                <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-3xl">😊</span>
+                </div>
+                <h1 className="text-2xl font-semibold text-foreground">작은 조각을 맞췄어요!</h1>
+                <div className="flex justify-center">
+                  <span className="px-3 py-1.5 bg-secondary rounded-full text-sm text-foreground">
+                    {slot.title}
+                  </span>
+                </div>
+                {user.pendingPraise && (
+                  <p className="text-sm text-primary leading-relaxed">{user.pendingPraise}</p>
+                )}
+              </div>
+
+              <PMSliderCard
+                emoji="😊"
+                title="즐거움"
+                question="이 활동을 하며 얼마나 즐거웠나요?"
+                hintLow="전혀"
+                hintHigh="아주 많이"
+                value={p}
+                touched={pTouched}
+                onChange={(v) => { setP(v); setPTouched(true); }}
+              />
+              <PMSliderCard
+                emoji="💪"
+                title="뿌듯함"
+                question="해냈다는 느낌은 얼마나 드나요?"
+                hintLow="전혀"
+                hintHigh="아주 많이"
+                value={m}
+                touched={mTouched}
+                onChange={(v) => { setM(v); setMTouched(true); }}
+              />
+              <p className="text-[11px] text-muted-foreground text-center -mt-2">
+                안 움직여도 괜찮아요. 그대로 넘어가도 돼요.
+              </p>
+
+              {feedbackLine && (
+                <div className="bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3">
+                  <p className="text-sm text-primary text-center">{feedbackLine}</p>
+                </div>
+              )}
+
+              {/* 메모(선택) */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3">
+                <p className="text-sm font-medium text-foreground">기억하고 싶은 순간 (선택)</p>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  className="w-full bg-secondary/30 rounded-2xl p-4 min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground text-sm"
+                  placeholder={slot.reflectQ || "한 단어도 좋고, 적지 않아도 괜찮아요."}
+                />
+              </div>
+
+              {/* 사진 인증(선택) */}
+              <Button
+                variant="outline"
+                size="lg"
+                className={`w-full rounded-2xl h-13 ${photoAttached ? "border-primary/50 text-primary" : ""}`}
+                disabled={verifying}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {verifying ? (
+                  "사진을 살펴보고 있어요..."
+                ) : photoAttached ? (
+                  <><Check className="w-4 h-4 mr-1.5" />사진을 확인했어요</>
+                ) : (
+                  <><Camera className="w-4 h-4 mr-1.5" />사진 첨부하기</>
+                )}
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center -mt-3">
+                사진은 확인 후 바로 사라져요. 저장되지 않아요.
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onPhotoSelected}
+                aria-label="인증 사진 선택"
+              />
+
+              <Button size="lg" className="w-full rounded-2xl h-14" onClick={handleFinish}>
+                {photoAttached ? "인증 완료!" : "기록 저장하기"}
+              </Button>
+
+              <button
+                onClick={() => setSkipMode(true)}
+                className="w-full text-center text-xs text-muted-foreground underline"
+              >
+                혹시 조각을 건너뛰었나요?
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

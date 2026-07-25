@@ -127,6 +127,48 @@ export interface FirstLaunchResult {
   forbidden: string[];
 }
 
+// 첫 실행 게이팅 채점(은둔 체크 sc_q1·sc_q2만으로 임시 보수적 판정).
+// ss1~ss15는 온보딩 주간 Day2 미션에서 답하며, 그때 scoreFirstLaunch로 정식 채점된다.
+// 임시 단계·밴드는 보수적으로(외출부담 상=고도고립·L1) 잡는다 — 완화는 데이터가 생긴 뒤에만.
+export function scoreGatingOnly(responses: SurveyResponses): FirstLaunchResult {
+  const secluded = isSecluded(responses);
+  const burden = outingBurdenFromScQ1(responses["sc_q1"] ?? 8);
+  const stage: Stage = secluded
+    ? STAGES.secluded
+    : burden === "상"
+      ? STAGES.highly_isolated
+      : burden === "중"
+        ? STAGES.at_risk
+        : STAGES.not_at_risk;
+  const bands = secluded
+    ? { low: 1, high: 1 }
+    : burden === "상"
+      ? { low: 1, high: 1 }
+      : burden === "중"
+        ? { low: 2, high: 2 }
+        : { low: 3, high: 4 };
+
+  const forbidden = new Set(stageForbidden(stage));
+  if (burden === "상") {
+    forbidden.add("외출");
+    forbidden.add("대면");
+  } else if (burden === "중") {
+    forbidden.add("외출");
+  }
+
+  return {
+    secluded,
+    outingBurden: burden,
+    severitySum: 0,
+    severityBand: "낮음",
+    areaSeeds: {},
+    stage,
+    baseBandLow: bands.low,
+    baseBandHigh: bands.high,
+    forbidden: Array.from(forbidden),
+  };
+}
+
 // 첫 실행 설문 전체 채점(단일 진입점)
 export function scoreFirstLaunch(
   items: FlatFirstLaunchItem[],

@@ -3,7 +3,7 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Camera } from "lucide-react";
+import { LogOut, Camera, Check } from "lucide-react";
 import { useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { Area, AREAS } from "@/lib/classifier";
 import { knowYourselfCardCopy, getChapters } from "@/lib/survey";
@@ -11,6 +11,7 @@ import { fileToDataUrl } from "@/lib/image";
 import {
   DaySlot,
   SLOT_BADGE,
+  SLOT_REASON,
   SKIP_REASONS,
   TIME_LABEL,
   TOGGLE_LABEL,
@@ -18,6 +19,7 @@ import {
   TimeOfDay,
   effectiveLevel,
   defaultMinutesForLevel,
+  toggleDefaultReason,
   planTodaySlots,
   planDepth,
   nextStage,
@@ -38,134 +40,226 @@ function pickPraise(nickname?: string) {
 }
 
 const areaLabels: Record<string, string> = {
-  [AREAS.rhythm]: "하루 리듬",
+  [AREAS.rhythm]: "생활 리듬",
   [AREAS.selfcare]: "나 돌보기",
   [AREAS.relationship]: "사람 관계",
   [AREAS.social]: "사회 활동",
 };
 
-const PLACE_OPTIONS = ["방에서", "집 안에서", "집 근처에서"];
+const PLACE_OPTIONS = ["내 방", "거실", "집 밖"];
 const WITH_OPTIONS = ["혼자", "가족과", "다른 사람과"];
 
 const TOGGLES: Toggle[] = ["light", "normal", "challenge"];
 const TIMES: TimeOfDay[] = ["morning", "noon", "evening"];
+const TIME_EMOJI: Record<TimeOfDay, string> = { morning: "🌅", noon: "☀️", evening: "🌙" };
 
-// 슬롯 카드 1장: 배지 + 미션 + 계획(토글·시간대·[어디서/누구와]) + 하기/건너뛰기
-function SlotCard({
+// 슬롯 선택 카드: 태그(영역 + 추천 이유) + 미션 + (선택 시) 계획 입력 펼침
+function SelectableSlotCard({
   slot,
+  selected,
+  onSelect,
   onUpdate,
+  showPlace,
+  showWith,
+  places,
+  mood,
+  nudgeDefaultNormal,
+  stage,
+}: {
+  slot: DaySlot;
+  selected: boolean;
+  onSelect: () => void;
+  onUpdate: (id: string, patch: Partial<DaySlot>) => void;
+  showPlace: boolean;
+  showWith: boolean;
+  places: string[];
+  mood: number;
+  nudgeDefaultNormal: boolean;
+  stage: NonNullable<ReturnType<typeof useAppStore>["user"]["stage"]>;
+}) {
+  const level = effectiveLevel(slot.level, slot.toggle, stage, slot.area);
+  const minutes = defaultMinutesForLevel(level);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={onSelect}
+      className={`bg-white p-5 rounded-3xl border cursor-pointer transition-colors space-y-3 ${
+        selected ? "border-primary shadow-[0_2px_16px_rgba(245,158,11,0.18)]" : "border-border/50 hover:border-primary/40 shadow-sm"
+      }`}
+    >
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          <span className="px-2.5 py-1 bg-secondary text-foreground text-[11px] rounded-full font-medium">
+            {areaLabels[slot.area]}
+          </span>
+          <span className="px-2.5 py-1 bg-primary/10 text-primary text-[11px] rounded-full font-medium">
+            {SLOT_BADGE[slot.kind]}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 {minutes}분</span>
+          <span
+            className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+              selected ? "bg-primary border-primary" : "border-border"
+            }`}
+          >
+            {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+          </span>
+        </div>
+      </div>
+
+      <h3 className="text-base font-medium text-foreground leading-relaxed">{slot.title}</h3>
+      <p className="text-xs text-muted-foreground leading-relaxed">{SLOT_REASON[slot.kind]}</p>
+
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pt-2 border-t border-border/40 space-y-2">
+              <p className="text-sm font-medium text-foreground">난이도를 조절할까요?</p>
+              <div className="flex gap-1.5">
+                {TOGGLES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => onUpdate(slot.id, { toggle: t })}
+                    className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
+                      slot.toggle === t
+                        ? "bg-primary text-white border-primary"
+                        : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
+                    }`}
+                  >
+                    {TOGGLE_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">{toggleDefaultReason(mood, nudgeDefaultNormal)}</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">오늘 언제 하실래요?</p>
+              <div className="flex gap-1.5">
+                {TIMES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => onUpdate(slot.id, { timeOfDay: slot.timeOfDay === t ? null : t })}
+                    className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
+                      slot.timeOfDay === t
+                        ? "bg-secondary border-primary/50 text-foreground font-medium"
+                        : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
+                    }`}
+                  >
+                    {TIME_EMOJI[t]} {TIME_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {showPlace && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">어디서 해볼까요?</p>
+                <div className="flex gap-1.5">
+                  {places.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => onUpdate(slot.id, { place: slot.place === p ? undefined : p })}
+                      className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
+                        slot.place === p
+                          ? "bg-secondary border-primary/50 text-foreground font-medium"
+                          : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showWith && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">누구와 함께할까요?</p>
+                <div className="flex gap-1.5">
+                  {WITH_OPTIONS.map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => onUpdate(slot.id, { withWhom: slot.withWhom === w ? undefined : w })}
+                      className={`flex-1 py-2.5 rounded-xl text-xs border transition-colors ${
+                        slot.withWhom === w
+                          ? "bg-secondary border-primary/50 text-foreground font-medium"
+                          : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"
+                      }`}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// 결정된 조각의 실행 카드: 사진 인증 / 했어요 / 건너뛰기
+function AcceptedSlotCard({
+  slot,
   onComplete,
   onPhoto,
   onSkip,
-  showPlace,
-  showWith,
-  verifyingSlotId,
+  verifying,
 }: {
   slot: DaySlot;
-  onUpdate: (id: string, patch: Partial<DaySlot>) => void;
   onComplete: (slot: DaySlot) => void;
   onPhoto: (slot: DaySlot) => void;
   onSkip: (slot: DaySlot, reason: string) => void;
-  showPlace: boolean;
-  showWith: boolean;
-  verifyingSlotId: string | null;
+  verifying: boolean;
 }) {
   const { user } = useAppStore();
   const [skipOpen, setSkipOpen] = useState(false);
   const stage = user.stage!;
   const level = effectiveLevel(slot.level, slot.toggle, stage, slot.area);
   const minutes = defaultMinutesForLevel(level);
-  const done = slot.status === "completed";
-  const skipped = slot.status === "skipped";
-  const verifying = verifyingSlotId === slot.id;
-
-  if (done || skipped) {
-    return (
-      <div className={`p-5 rounded-3xl border ${done ? "bg-primary/5 border-primary/20" : "bg-white/60 border-border/40"}`}>
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{done ? "🧩" : "🌙"}</span>
-          <div className="flex-1 min-w-0">
-            <p className={`text-sm ${done ? "text-foreground" : "text-muted-foreground line-through"} truncate`}>
-              {slot.title}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {done ? "오늘의 조각을 맞췄어요" : "오늘은 쉬어가기로 했어요"}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 hover:border-primary/30 transition-colors space-y-4"
+      className="bg-white p-6 rounded-3xl shadow-sm border border-primary/40 space-y-4"
     >
-      <div className="flex justify-between items-start">
-        <span className="px-3 py-1 bg-secondary text-foreground text-xs rounded-full font-medium">
-          {slot.kind === "target" ? `${SLOT_BADGE.target} · ${areaLabels[slot.area]}` : SLOT_BADGE[slot.kind]}
-        </span>
-        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">약 {minutes}분</span>
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          <span className="px-2.5 py-1 bg-secondary text-foreground text-[11px] rounded-full font-medium">
+            {areaLabels[slot.area]}
+          </span>
+          <span className="px-2.5 py-1 bg-primary/10 text-primary text-[11px] rounded-full font-medium">
+            오늘의 조각
+          </span>
+        </div>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">약 {minutes}분</span>
       </div>
 
       <h3 className="text-lg font-medium text-foreground leading-relaxed">{slot.title}</h3>
-
-      {/* 오늘의 시도 강도(토글) — 숫자·규정 언어 없이 */}
-      <div className="space-y-2.5">
-        <div className="flex gap-1.5">
-          {TOGGLES.map((t) => (
-            <button
-              key={t}
-              onClick={() => onUpdate(slot.id, { toggle: t })}
-              className={`flex-1 py-2 rounded-xl text-xs border transition-colors ${slot.toggle === t ? "bg-primary text-white border-primary" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
-            >
-              {TOGGLE_LABEL[t]}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1.5 items-center">
-          <span className="text-[11px] text-muted-foreground shrink-0 mr-1">언제쯤?</span>
-          {TIMES.map((t) => (
-            <button
-              key={t}
-              onClick={() => onUpdate(slot.id, { timeOfDay: slot.timeOfDay === t ? null : t })}
-              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.timeOfDay === t ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
-            >
-              {TIME_LABEL[t]}
-            </button>
-          ))}
-        </div>
-        {showPlace && (
-          <div className="flex gap-1.5 items-center flex-wrap">
-            <span className="text-[11px] text-muted-foreground shrink-0 mr-1">어디서?</span>
-            {PLACE_OPTIONS.map((p) => (
-              <button
-                key={p}
-                onClick={() => onUpdate(slot.id, { place: slot.place === p ? undefined : p })}
-                className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.place === p ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
-        {showWith && (
-          <div className="flex gap-1.5 items-center flex-wrap">
-            <span className="text-[11px] text-muted-foreground shrink-0 mr-1">누구와?</span>
-            {WITH_OPTIONS.map((w) => (
-              <button
-                key={w}
-                onClick={() => onUpdate(slot.id, { withWhom: slot.withWhom === w ? undefined : w })}
-                className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${slot.withWhom === w ? "bg-secondary border-primary/40 text-foreground" : "bg-white border-border/50 text-muted-foreground hover:bg-secondary/50"}`}
-              >
-                {w}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {[
+          `${TOGGLE_LABEL[slot.toggle]}로`,
+          slot.timeOfDay ? `${TIME_LABEL[slot.timeOfDay]}에` : null,
+          slot.place ? `${slot.place}에서` : null,
+          slot.withWhom ?? null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}{" "}
+        해보기로 했어요.
+      </p>
 
       {verifying ? (
         <div className="flex items-center justify-center gap-3 py-2">
@@ -225,6 +319,7 @@ export function Home() {
   const { user, updateUser, setView, nextDay, signOut } = useAppStore();
   const verifyMut = useVerifyChallengePhoto();
   const [verifyingSlotId, setVerifyingSlotId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const photoSlotRef = useRef<DaySlot | null>(null);
 
@@ -234,8 +329,6 @@ export function Home() {
     const earlyAvoidance = user.onboardingWeek
       ? summarizeOnboardingWeek(user.onboardingWeek).earlyAvoidance
       : false;
-    const boostActive =
-      user.interestBoostUntil !== null && user.dayCount <= user.interestBoostUntil;
     const slots = planTodaySlots({
       dayCount: user.dayCount,
       stage: user.stage,
@@ -246,7 +339,7 @@ export function Home() {
       desiredArea: user.daily.area,
       activityId: user.daily.activityId,
       areaSeeds: user.areaSeeds,
-      interests: boostActive ? user.interests : user.interests,
+      interests: user.interests,
       areaPM: user.areaPM,
       skipLog: user.skipLog,
       cycleStartDay: user.cycleStartDay ?? user.dayCount,
@@ -356,7 +449,22 @@ export function Home() {
 
   const slots = user.todaySlots ?? [];
   const depth = planDepth(user.stage);
+  // 외출 게이트가 있으면 '집 밖'은 권하지 않는다
+  const places = user.forbidden.includes("외출")
+    ? PLACE_OPTIONS.filter((p) => p !== "집 밖")
+    : PLACE_OPTIONS;
+  const proposed = slots.filter((s) => s.status === "proposed");
+  const active = slots.filter((s) => s.status !== "proposed");
   const doneCount = slots.filter((s) => s.status === "completed").length;
+  // 아직 아무 조각도 결정하지 않았다면 = 선택 모드
+  const selectionMode = proposed.length > 0 && active.length === 0;
+  const mood = user.daily?.mood ?? 3;
+
+  const decideSlot = () => {
+    if (!selectedId) return;
+    patchSlot(selectedId, { status: "accepted" });
+    setSelectedId(null);
+  };
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -389,12 +497,19 @@ export function Home() {
         <div className="space-y-6">
           <div className="mb-8 pl-2 border-l-4 border-primary">
             <h2 className="text-xl font-medium text-foreground">
-              {doneCount > 0 ? (
+              {selectionMode ? (
+                <>오늘 하루를 채울<br />작은 조각을 골라주세요.</>
+              ) : doneCount > 0 ? (
                 <>오늘 {doneCount}조각을 맞췄어요.<br />더 해도, 여기까지여도 좋아요.</>
               ) : (
-                <>오늘의 조각들이에요.<br />끌리는 것 하나면 충분해요.</>
+                <>오늘의 조각이에요.<br />천천히, 지금의 속도면 충분해요.</>
               )}
             </h2>
+            {selectionMode && (
+              <p className="text-sm text-muted-foreground mt-1.5">
+                지금의 나에게 맞는 것 하나면 충분해요.
+              </p>
+            )}
           </div>
 
           {user.promotionOffer && (
@@ -421,21 +536,98 @@ export function Home() {
 
           {knowCard}
 
-          <AnimatePresence>
-            {slots.map((slot) => (
-              <SlotCard
-                key={slot.id}
-                slot={slot}
-                onUpdate={patchSlot}
-                onComplete={completeSlot}
-                onPhoto={requestPhoto}
-                onSkip={skipSlot}
-                showPlace={depth.place}
-                showWith={depth.withWhom}
-                verifyingSlotId={verifyingSlotId}
-              />
-            ))}
-          </AnimatePresence>
+          {selectionMode ? (
+            <>
+              <AnimatePresence>
+                {proposed.map((slot) => (
+                  <SelectableSlotCard
+                    key={slot.id}
+                    slot={slot}
+                    selected={selectedId === slot.id}
+                    onSelect={() => setSelectedId(slot.id)}
+                    onUpdate={patchSlot}
+                    showPlace={depth.place}
+                    showWith={depth.withWhom}
+                    places={places}
+                    mood={mood}
+                    nudgeDefaultNormal={user.nudgeDefaultNormal}
+                    stage={user.stage!}
+                  />
+                ))}
+              </AnimatePresence>
+              <Button
+                size="lg"
+                className="w-full rounded-2xl h-14"
+                disabled={!selectedId}
+                onClick={decideSlot}
+              >
+                이 조각으로 결정했어요
+              </Button>
+            </>
+          ) : (
+            <>
+              <AnimatePresence>
+                {active.map((slot) =>
+                  slot.status === "accepted" ? (
+                    <AcceptedSlotCard
+                      key={slot.id}
+                      slot={slot}
+                      onComplete={completeSlot}
+                      onPhoto={requestPhoto}
+                      onSkip={skipSlot}
+                      verifying={verifyingSlotId === slot.id}
+                    />
+                  ) : (
+                    <div
+                      key={slot.id}
+                      className={`p-5 rounded-3xl border ${slot.status === "completed" ? "bg-primary/5 border-primary/20" : "bg-white/60 border-border/40"}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{slot.status === "completed" ? "🧩" : "🌙"}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${slot.status === "completed" ? "text-foreground" : "text-muted-foreground line-through"} truncate`}>
+                            {slot.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {slot.status === "completed" ? "오늘의 조각을 맞췄어요" : "오늘은 쉬어가기로 했어요"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </AnimatePresence>
+
+              {proposed.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground px-1">
+                    더 하고 싶다면, 이런 조각도 있어요
+                  </p>
+                  {proposed.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className="bg-white/70 p-4 rounded-2xl border border-border/50 flex items-center gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{slot.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {areaLabels[slot.area]} · {SLOT_BADGE[slot.kind]}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl shrink-0"
+                        onClick={() => patchSlot(slot.id, { status: "accepted" })}
+                      >
+                        이것도 할래요
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
 
           <p className="text-xs text-muted-foreground text-center">
             사진은 확인 후 바로 사라져요. 저장되지 않아요.

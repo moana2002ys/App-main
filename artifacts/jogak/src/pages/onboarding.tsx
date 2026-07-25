@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { getFirstLaunchItems, firstLaunchIntro } from "@/lib/survey";
-import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
+import { scoreGatingOnly, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
 import { emptyOnboardingWeek } from "@/lib/ba";
 
 const COLORS = [
@@ -18,7 +18,12 @@ const COLORS = [
 // step 0: 인트로 / 1~N: 설문 문항(JSON 단일 출처, 한 번에 하나씩) / N+1: 닉네임·캐릭터 색
 export function Onboarding() {
   const { updateUser, setView } = useAppStore();
-  const items = useMemo(() => getFirstLaunchItems(), []);
+  // 첫 실행은 고립 여부를 가르는 은둔 체크(sc_q1·sc_q2)만.
+  // 나머지 상황 체크리스트(ss1~ss15)는 온보딩 주간 Day2 미션으로 진행한다.
+  const items = useMemo(
+    () => getFirstLaunchItems().filter((i) => i.moduleId === "seclusion_check"),
+    [],
+  );
   const [step, setStep] = useState(0);
   const [responses, setResponses] = useState<SurveyResponses>({});
   const [nickname, setNickname] = useState("");
@@ -36,7 +41,8 @@ export function Onboarding() {
   };
 
   const handleFinish = () => {
-    const result = scoreFirstLaunch(items, responses);
+    // 은둔 체크만으로 보수적 임시 판정 — Day2 체크리스트 완료 시 정식 채점으로 갱신
+    const result = scoreGatingOnly(responses);
     const legacy = deriveLegacyAnswers(responses, result);
 
     updateUser({
