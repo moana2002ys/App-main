@@ -1,3 +1,1 @@
-attached_assets/Behavioral-Activation-Cycle_1784872404015.zip filter=lfs diff=lfs merge=lfs -text
-attached_assets/Behavioral-Activation-Cycle_1784905808218.zip filter=lfs diff=lfs merge=lfs -text
-attached_assets/Behavioral-Activation-Cycle_1784905808219.zip filter=lfs diff=lfs merge=lfs -text
+# 대용량 zip은 git 추적에서 제외되었으므로 LFS 설정도 함께 제거됨 (.gitignore 참고)

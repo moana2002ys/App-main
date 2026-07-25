@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# 대용량 첨부 zip (109MB, GitHub 100MB 제한 초과 / 서로 중복본)
+# 로컬에는 그대로 남아 있음. 공유가 필요하면 Git LFS나 별도 스토리지를 쓸 것.
+attached_assets/Behavioral-Activation-Cycle_*.zip
