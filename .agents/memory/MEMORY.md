@@ -8,4 +8,5 @@
 - [미션 4개 구성(선택2+다양성2)](mission-diversity-set.md) — 다양성 후보 밴드는 선택영역 캡 적용 전 밴드로 산출; 후보 개수별 규칙·게이트 단일출처.
 - [Jogak reward model](jogak-reward-model.md) — badges granted per fine CATEGORY (12), not per broad area; keyword classifier + deterministic-fallback demo + interest branch.
 - [활동 선택 설문 게이트](activity-survey-gating.md) — 체크인 2번째 질문=구체 활동; 노출 게이트를 determineTodayArea와 일치, activityId로 미션 생성 연동.
+- [Jogak kit rebuild rollback](jogak-ba-cycle.md) — kit cycle model reverted by user; only 인증 화면·reflectQ·마이페이지 kept; don't reintroduce without ask. E2e: split short runs or DB-seed (600s cap).
 - [Survey JSON scoring](survey-json-scoring.md) — survey JSON v1.2 is single source of truth; prose-only rules mirrored as constants; guard exit handlers on step flows; verify e2e failures against DB state.
