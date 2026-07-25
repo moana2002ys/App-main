@@ -21,6 +21,7 @@ import {
   defaultMinutesForLevel,
   toggleDefaultReason,
   placeOptionsForSlot,
+  knowYourselfDueDay,
   planTodaySlots,
   planDepth,
   nextStage,
@@ -416,10 +417,15 @@ export function Home() {
     updateUser({ promotionOffer: false, promotionDeclinedDay: user.dayCount });
   };
 
-  // '나 알아가기' 카드 — 5챕터를 모두 마치기 전까지 하루 1장 노출.
+  // '나 알아가기' 카드 — 고정 편성: 챕터별 예정일(주 1챕터, 가입 7주 이내)이
+  // 되면 노출하고, 예정일이 지났으면 따라잡을 때까지 매일 노출. 하루 1장 제한.
   const ky = user.knowYourself;
+  const kyDueDay = knowYourselfDueDay(user.cycleStartDay, ky?.chapterIndex ?? 0);
   const showKnowCard =
-    !!user.stage && !(ky?.finalized) && (ky?.lastChapterDay ?? null) !== user.dayCount;
+    !!user.stage &&
+    !(ky?.finalized) &&
+    (ky?.lastChapterDay ?? null) !== user.dayCount &&
+    user.dayCount >= kyDueDay;
 
   const knowCard = showKnowCard ? (
     <motion.div

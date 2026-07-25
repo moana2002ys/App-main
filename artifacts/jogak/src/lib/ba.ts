@@ -104,6 +104,14 @@ export const SLOT_REASON: Record<SlotKind, string> = {
   avoidance: "요즘 미뤄뒀던 조각을 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.",
 };
 
+// '나 알아가기' 고정 편성 — 5챕터를 첫 가입 후 7주 안에 모두 만나도록,
+// 본 사이클 시작(온보딩 1주 다음)부터 매주 1챕터씩 예정일을 배정한다.
+// 챕터 i의 예정일 = 사이클 시작일 + 7×i (2주차~6주차 → 가입 7주 이내 완료).
+// 예정일이 지났는데 아직 안 했다면 따라잡을 때까지 매일 노출한다.
+export function knowYourselfDueDay(cycleStartDay: number | null, chapterIndex: number): number {
+  return (cycleStartDay ?? 1) + chapterIndex * 7;
+}
+
 // "어디서 해볼까요?" 선택지 — 챌린지 종류에 따라 공간 범위를 다르게 제시.
 // 실외형이면 집 밖의 단계적 공간, 부엌형이면 부엌 포함, 그 외 기본 내 방/거실/집 밖.
 // 외출 게이트가 있으면 실외 선택지는 권하지 않는다(활동 자체는 게이트로 이미 걸러짐).
