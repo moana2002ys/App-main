@@ -11,55 +11,133 @@ const AREA_COLORS: Record<Area, string> = {
   social: "#93C5FD",
 };
 
-function SummaryCard({ label, value, unit }: { label: string; value: number | string; unit?: string }) {
+function SummaryCard({
+  label,
+  value,
+  unit,
+  emoji,
+}: {
+  label: string;
+  value: number | string;
+  unit?: string;
+  emoji?: string;
+}) {
   return (
-    <div className="bg-white/80 rounded-2xl p-4 border border-white/60 shadow-sm text-center">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-2xl font-bold text-foreground">
+    <div className="bg-white rounded-2xl p-4 border border-border/40 shadow-sm text-center">
+      <p className="text-xs text-muted-foreground mb-1.5">{label}</p>
+      <p className="text-2xl font-bold text-amber-500">
         {value}
-        {unit && <span className="text-sm font-medium text-muted-foreground ml-0.5">{unit}</span>}
+        {unit && <span className="text-lg font-bold text-amber-500">{unit}</span>}
+        {emoji && <span className="text-xl ml-1">{emoji}</span>}
       </p>
     </div>
   );
 }
 
-function Donut({ counts, total }: { counts: Record<Area, number>; total: number }) {
-  const radius = 42;
-  const circ = 2 * Math.PI * radius;
-  let offset = 0;
+// 최근 7일 기분 곡선 + 조각 맞춘 날 퍼즐 마커 — 목업 "움직인 날, 기분이 올라갔어요"
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function WeeklyMoodChart({ records }: { records: DayRecord[] }) {
+  const recent = records.slice(-7);
+  const withMood = recent.filter((r) => r.mood !== null);
+  if (withMood.length < 2) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-6">
+        기분 기록이 이틀 이상 쌓이면 흐름이 보여요.
+      </p>
+    );
+  }
+
+  // 마지막 기록 = 오늘이라고 보고 요일 라벨 계산
+  const today = new Date();
+  const labels = recent.map((_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (recent.length - 1 - i));
+    return WEEKDAYS[d.getDay()];
+  });
+
+  const W = 300;
+  const H = 120;
+  const padX = 18;
+  const padTop = 18;
+  const padBottom = 26;
+  const stepX = recent.length > 1 ? (W - padX * 2) / (recent.length - 1) : 0;
+  const yFor = (mood: number) => H - padBottom - ((mood - 1) / 4) * (H - padTop - padBottom);
+
+  const coords = recent.map((r, i) => ({
+    x: padX + i * stepX,
+    y: r.mood !== null ? yFor(r.mood) : null,
+    done: r.completedTarget + r.completedPleasure + r.completedAvoidance > 0,
+    day: r.day,
+    label: labels[i],
+  }));
+  const drawn = coords.filter((c): c is typeof c & { y: number } => c.y !== null);
+  const linePath = drawn.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
 
   return (
-    <div className="relative w-32 h-32 shrink-0">
-      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-        <circle cx="50" cy="50" r={radius} fill="none" stroke="#F1F5F9" strokeWidth="12" />
-        {total > 0 &&
-          ALL_AREAS.map((area) => {
-            const value = counts[area] || 0;
-            if (value === 0) return null;
-            const len = (value / total) * circ;
-            const dash = `${len} ${circ - len}`;
-            const el = (
-              <circle
-                key={area}
-                cx="50"
-                cy="50"
-                r={radius}
-                fill="none"
-                stroke={AREA_COLORS[area]}
-                strokeWidth="12"
-                strokeDasharray={dash}
-                strokeDashoffset={-offset}
-                strokeLinecap="round"
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      {/* 옅은 가로 눈금 */}
+      {[1, 3, 5].map((m) => (
+        <line key={m} x1={padX} x2={W - padX} y1={yFor(m)} y2={yFor(m)} stroke="#F1EFE9" strokeWidth="1" />
+      ))}
+      <path
+        d={linePath}
+        fill="none"
+        stroke="#FCD34D"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {drawn.map((c) =>
+        c.done ? (
+          <text key={c.day} x={c.x} y={c.y + 5} textAnchor="middle" fontSize="14">
+            🧩
+          </text>
+        ) : (
+          <circle key={c.day} cx={c.x} cy={c.y} r="3.5" fill="#3F3B33" />
+        ),
+      )}
+      {coords.map((c, i) => (
+        <text
+          key={`l-${i}`}
+          x={c.x}
+          y={H - 6}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#A8A29E"
+        >
+          {c.label}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// 목업 "내가 맞춘 조각 영역" — 영역별 완료 개수 막대
+function AreaPieceBars({ counts }: { counts: Record<Area, number> }) {
+  const max = Math.max(1, ...ALL_AREAS.map((a) => counts[a] || 0));
+  return (
+    <div className="space-y-4">
+      {ALL_AREAS.map((area) => {
+        const value = counts[area] || 0;
+        return (
+          <div key={area} className="space-y-1.5">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-foreground/80">{AREA_LABELS[area]}</span>
+              <span className="text-muted-foreground">{value}개</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-secondary/60 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${(value / max) * 100}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: value > 0 ? AREA_COLORS[area] : "#D6D3CB" }}
               />
-            );
-            offset += len;
-            return el;
-          })}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold text-foreground">{total}</span>
-        <span className="text-[10px] text-muted-foreground">완료</span>
-      </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -133,64 +211,6 @@ function TrendChart({ log }: { log: GrowthEvent[] }) {
   );
 }
 
-// 기분 곡선 × 완료 표시 오버레이 — BA의 핵심 시각화.
-// "조각을 맞춘 날"에 점을 진하게 찍어, 행동과 기분의 연결을 스스로 발견하게 한다.
-function MoodChart({ records, baseline }: { records: DayRecord[]; baseline: number | null }) {
-  const withMood = records.filter((r) => r.mood !== null).slice(-14);
-  if (withMood.length < 2) {
-    return (
-      <p className="text-sm text-muted-foreground text-center py-6">
-        기분 기록이 이틀 이상 쌓이면 흐름이 보여요.
-      </p>
-    );
-  }
-  const W = 280;
-  const H = 100;
-  const padX = 10;
-  const padY = 14;
-  const stepX = (W - padX * 2) / (withMood.length - 1);
-  const yFor = (mood: number) => H - padY - ((mood - 1) / 4) * (H - padY * 2);
-  const coords = withMood.map((r, i) => ({
-    x: padX + i * stepX,
-    y: yFor(r.mood!),
-    done: r.completedTarget + r.completedPleasure + r.completedAvoidance > 0,
-    day: r.day,
-  }));
-  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
-
-  return (
-    <div className="space-y-3">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-        {baseline !== null && (
-          <line
-            x1={padX} x2={W - padX} y1={yFor(baseline)} y2={yFor(baseline)}
-            stroke="#CBD5E1" strokeWidth="1" strokeDasharray="4 4"
-          />
-        )}
-        <path d={linePath} fill="none" stroke="#93C5FD" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        {coords.map((c) => (
-          <circle
-            key={c.day}
-            cx={c.x} cy={c.y}
-            r={c.done ? 4.5 : 3}
-            fill={c.done ? "#F59E0B" : "#E2E8F0"}
-            stroke={c.done ? "#F59E0B" : "#94A3B8"}
-            strokeWidth="1"
-          />
-        ))}
-      </svg>
-      <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] inline-block" /> 조각을 맞춘 날
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#E2E8F0] border border-[#94A3B8] inline-block" /> 쉬어간 날
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // 영역별 즐거움·뿌듯함 평균(1~5) — "무엇이 나에게 즐거움을 주는가"의 발견.
 function AreaPMBars({ areaPM }: { areaPM: AreaPMMap }) {
   const rows = ALL_AREAS.map((area) => {
@@ -244,73 +264,37 @@ function AreaPMBars({ areaPM }: { areaPM: AreaPMMap }) {
 export function StatsSection() {
   const { user } = useAppStore();
   const totals = areaTotals(user.categoryCounts);
-  const total = ALL_AREAS.reduce((s, a) => s + totals[a], 0);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      {/* 누적 성장 요약 */}
-      <section>
-        <h3 className="text-sm font-medium text-foreground/70 mb-3 px-1">지금까지의 걸음</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <SummaryCard label="함께한 날" value={user.dayCount} unit="일" />
-          <SummaryCard label="완료한 조각" value={user.totalCompletions} unit="개" />
-          <SummaryCard label="연속 참여" value={user.streakDays} unit="일" />
-          <SummaryCard label="모은 포인트" value={user.points} unit="pt" />
-        </div>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      {/* 연속 참여 · 모은 조각 */}
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="연속 참여" value={user.streakDays} unit="일" emoji="🔥" />
+        <SummaryCard label="모은 조각" value={user.totalCompletions} unit="개" emoji="🧩" />
+      </div>
+
+      {/* 최근 7일 기분 × 활동 */}
+      <section className="bg-white rounded-3xl p-5 border border-border/40 shadow-sm">
+        <h3 className="text-base font-bold text-foreground">움직인 날, 기분이 올라갔어요</h3>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-3">최근 7일간의 기분 변화와 활동 기록</p>
+        <WeeklyMoodChart records={user.dayRecords} />
       </section>
 
-      {/* 영역별 활동 분포 */}
-      <section className="bg-white/80 rounded-3xl p-5 border border-white/60 shadow-sm">
-        <h3 className="text-sm font-medium text-foreground/70 mb-4">어떤 영역을 해왔나요</h3>
-        {total === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            첫 조각을 완료하면 여기에 나타나요.
-          </p>
-        ) : (
-          <div className="flex items-center gap-5">
-            <Donut counts={totals} total={total} />
-            <div className="flex-1 space-y-2.5">
-              {ALL_AREAS.map((area) => {
-                const value = totals[area];
-                const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-                return (
-                  <div key={area}>
-                    <div className="flex justify-between items-center text-xs mb-1">
-                      <span className="text-foreground/70">{AREA_LABELS[area]}</span>
-                      <span className="text-muted-foreground">{value}회</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-secondary/60 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: AREA_COLORS[area] }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* 기분 흐름 × 완료 표시 */}
-      <section className="bg-white/80 rounded-3xl p-5 border border-white/60 shadow-sm">
-        <h3 className="text-sm font-medium text-foreground/70 mb-4">기분의 흐름</h3>
-        <MoodChart records={user.dayRecords} baseline={user.moodBaseline} />
+      {/* 영역별 맞춘 조각 */}
+      <section className="bg-white rounded-3xl p-5 border border-border/40 shadow-sm">
+        <h3 className="text-base font-bold text-foreground mb-4">내가 맞춘 조각 영역</h3>
+        <AreaPieceBars counts={totals} />
       </section>
 
       {/* 영역별 즐거움·뿌듯함 */}
-      <section className="bg-white/80 rounded-3xl p-5 border border-white/60 shadow-sm">
-        <h3 className="text-sm font-medium text-foreground/70 mb-4">나에게 잘 맞았던 것들</h3>
+      <section className="bg-white rounded-3xl p-5 border border-border/40 shadow-sm">
+        <h3 className="text-base font-bold text-foreground mb-4">나에게 잘 맞았던 것들</h3>
         <AreaPMBars areaPM={user.areaPM} />
       </section>
 
       {/* 성장·변화 추이 */}
-      <section className="bg-white/80 rounded-3xl p-5 border border-white/60 shadow-sm">
-        <h3 className="text-sm font-medium text-foreground/70 mb-4">내가 변해온 흐름</h3>
+      <section className="bg-white rounded-3xl p-5 border border-border/40 shadow-sm">
+        <h3 className="text-base font-bold text-foreground mb-4">내가 변해온 흐름</h3>
         <TrendChart log={user.growthLog} />
       </section>
     </motion.div>

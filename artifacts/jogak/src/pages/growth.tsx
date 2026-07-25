@@ -40,14 +40,30 @@ export function Growth() {
         </span>
       </div>
 
-      {/* 캐릭터 히어로 */}
-      <div className="flex flex-col items-center pt-2 pb-4 shrink-0">
-        <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-          <Character size="lg" />
+      {/* 기록 헤더 — 닉네임 + LV + 함께한 날 + 조각이 얼굴 */}
+      <div className="px-6 pt-2 pb-4 shrink-0">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl border border-border/50 shadow-sm p-5 flex items-center justify-between"
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-foreground">
+                {user.nickname || "조각이 친구"}님의 기록
+              </h1>
+              <span className="text-[11px] font-semibold text-amber-600 bg-amber-100 rounded-full px-2 py-0.5">
+                LV.{user.backgroundStage + 1}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              조각이와 함께한 지 {user.dayCount}일째
+            </p>
+          </div>
+          <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center shrink-0">
+            <Character size="sm" className="scale-[0.55]" showItems={false} />
+          </div>
         </motion.div>
-        <p className="mt-2 text-sm text-foreground/70">
-          {user.nickname || "조각이 친구"}님의 조각이
-        </p>
       </div>
 
       {/* 탭 */}

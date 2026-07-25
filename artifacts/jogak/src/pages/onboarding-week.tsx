@@ -14,29 +14,119 @@ import {
 import { getFirstLaunchItems } from "@/lib/survey";
 import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
 
-// Day1 심리교육 카드 — 진단·낙인 언어 없이, '상태'와 '작은 행동'의 이야기만.
-const LEARN_CARDS = [
+// Day1 심리교육 슬라이드 — 진단·낙인 언어 없이, '상태'와 '작은 행동'의 이야기만.
+type LearnFace = "frown" | "wink" | "smile" | "joy";
+
+const LEARN_CARDS: {
+  face: LearnFace;
+  title: string;
+  body: string;
+  diagram?: "cycle" | "arrow";
+  cta?: string;
+}[] = [
   {
-    emoji: "🌙",
-    title: "혼자의 시간이 길어질 때",
-    body: "방 안에서 보내는 시간이 길어지는 건 누구에게나 일어날 수 있는 일이에요. 게으름이나 성격의 문제가 아니라, 마음이 스스로를 지키려는 자연스러운 반응이에요.",
+    face: "frown",
+    title: "아무것도\n하고 싶지 않은 날이 있죠?",
+    body: "이불 밖으로 나가기도 벅차고,\n모든 것이 무의미하게 느껴질 때가 있어요.",
   },
   {
-    emoji: "🔄",
-    title: "쉼과 고립의 차이",
-    body: "쉼은 에너지를 다시 채워주지만, 혼자의 시간이 너무 길어지면 오히려 기운이 더 빠지기도 해요. 하고 싶은 일이 줄고, 사람을 만나는 게 점점 더 무거워지는 식으로요.",
+    face: "wink",
+    title: "우리는 보통 기분이\n나아지면 움직이려 해요",
+    body: "하지만 무기력할 때 기다리기만 하면\n오히려 더 우울해지곤 하죠.",
+    diagram: "cycle",
   },
   {
-    emoji: "🧩",
-    title: "회복은 아주 작은 행동에서",
-    body: "기분이 나아지길 기다렸다가 움직이는 게 아니라, 아주 작은 행동이 먼저 기분을 조금씩 움직여줘요. 물 한 잔, 창문 열기 같은 정말 작은 조각부터요.",
+    face: "smile",
+    title: "일단 아주 작은 것부터\n움직여 볼까요?",
+    body: "신기하게도 작은 행동을 먼저 하면,\n그 뒤에 기분이 서서히 따라온답니다.",
+    diagram: "arrow",
   },
   {
-    emoji: "🤝",
-    title: "조각조각이 함께해요",
-    body: "여기서는 잘하고 못하고를 재지 않아요. 하루에 하나, 지금의 나에게 맞는 작은 조각을 함께 고르고, 해낸 만큼만 천천히 넓혀갈 거예요.",
+    face: "joy",
+    title: "이제부터 당신만의\n작은 조각을 맞춰볼까요?",
+    body: "매일 조금씩 성취감과 즐거움을 주는\n나만의 조각들을 찾아봐요.",
+    cta: "내 가치 찾기",
   },
 ];
+
+// 목업의 노란 얼굴 — 슬라이드별 표정
+function LearnFaceSvg({ face }: { face: LearnFace }) {
+  return (
+    <svg viewBox="0 0 100 100" className="w-40 h-40 mx-auto">
+      <circle cx="50" cy="50" r="46" fill="#FCD34D" />
+      {face === "frown" && (
+        <>
+          <path d="M28 34 L42 40" stroke="#3F3B33" strokeWidth="4" strokeLinecap="round" />
+          <path d="M72 34 L58 40" stroke="#3F3B33" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="36" cy="47" r="4.5" fill="#3F3B33" />
+          <circle cx="64" cy="47" r="4.5" fill="#3F3B33" />
+          <path d="M38 68 Q50 58 62 68" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+        </>
+      )}
+      {face === "wink" && (
+        <>
+          <path d="M60 26 Q64 20 68 26" stroke="#3F3B33" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+          <circle cx="36" cy="44" r="5" fill="#3F3B33" />
+          <circle cx="63" cy="44" r="3.5" fill="#3F3B33" />
+          <path d="M42 62 Q50 68 58 62" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
+        </>
+      )}
+      {face === "smile" && (
+        <>
+          <circle cx="35" cy="42" r="5" fill="#3F3B33" />
+          <circle cx="65" cy="42" r="5" fill="#3F3B33" />
+          <ellipse cx="28" cy="52" rx="5" ry="3" fill="#F9A8A8" opacity="0.7" />
+          <ellipse cx="72" cy="52" rx="5" ry="3" fill="#F9A8A8" opacity="0.7" />
+          <path d="M32 56 Q50 74 68 56" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+        </>
+      )}
+      {face === "joy" && (
+        <>
+          <path d="M24 26 L34 20 L36 30 Z" fill="#FB923C" />
+          <path d="M76 26 L66 20 L64 30 Z" fill="#FB923C" />
+          <path d="M28 44 Q35 36 42 44" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
+          <path d="M58 44 Q65 36 72 44" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
+          <path d="M30 56 Q50 78 70 56" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// 슬라이드 2: 기분 저하 → 더 우울함 → 미루기/회피 악순환 다이어그램
+function CycleDiagram() {
+  return (
+    <div className="relative w-56 h-40 mx-auto">
+      <svg viewBox="0 0 224 160" className="absolute inset-0 w-full h-full">
+        <circle cx="112" cy="84" r="46" fill="none" stroke="#D6D3CB" strokeWidth="2" strokeDasharray="4 6" />
+      </svg>
+      <span className="absolute left-1/2 -translate-x-1/2 top-0 bg-white border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground/80 shadow-sm">
+        기분 저하
+      </span>
+      <span className="absolute left-2 bottom-2 bg-secondary border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground font-medium shadow-sm">
+        더 우울함
+      </span>
+      <span className="absolute right-0 bottom-2 bg-white border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground/80 shadow-sm">
+        미루기/회피
+      </span>
+    </div>
+  );
+}
+
+// 슬라이드 3: 작은 행동 → 기분이 따라옴!
+function ArrowDiagram() {
+  return (
+    <div className="flex flex-col items-center gap-0">
+      <span className="bg-white border-2 border-primary rounded-full px-6 py-2.5 text-base font-medium text-foreground shadow-sm">
+        작은 행동
+      </span>
+      <div className="w-1 h-8 bg-primary/60 rounded-full my-1.5" />
+      <span className="bg-primary/15 border border-primary/40 rounded-2xl px-5 py-2 text-sm font-medium text-foreground">
+        기분이 따라옴!
+      </span>
+    </div>
+  );
+}
 
 const INTERESTS = [
   "게임", "음악", "동물", "식물", "요리·먹는 것", "책·글", "스포츠", "그림·만들기",
@@ -335,36 +425,63 @@ export function OnboardingWeek() {
             </motion.div>
           ) : step === "learn" ? (
             <motion.div
-              key={`learn-${learnIndex}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-6"
+              key="learn"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 flex flex-col"
             >
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-medium text-foreground">고립과 은둔, 가볍게 알아보기</h2>
-                <p className="text-sm text-muted-foreground">{learnIndex + 1} / {LEARN_CARDS.length}</p>
+              {/* 상단 진행바 + 건너뛰기 */}
+              <div className="flex items-center gap-4 pt-4 pb-2">
+                <div className="flex-1 h-2 bg-secondary/70 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-primary rounded-full"
+                    animate={{ width: `${((learnIndex + 1) / LEARN_CARDS.length) * 100}%` }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </div>
+                <button
+                  onClick={() => setStep("pm")}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  건너뛰기
+                </button>
               </div>
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-4 text-center">
-                <span className="text-4xl">{LEARN_CARDS[learnIndex]!.emoji}</span>
-                <h3 className="text-lg font-medium text-foreground">{LEARN_CARDS[learnIndex]!.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{LEARN_CARDS[learnIndex]!.body}</p>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`learn-slide-${learnIndex}`}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex-1 flex flex-col items-center justify-center text-center gap-8"
+                >
+                  <LearnFaceSvg face={LEARN_CARDS[learnIndex]!.face} />
+                  <div className="space-y-4">
+                    <h2 className="text-2xl font-bold text-foreground leading-snug whitespace-pre-line">
+                      {LEARN_CARDS[learnIndex]!.title}
+                    </h2>
+                    <p className="text-[15px] text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {LEARN_CARDS[learnIndex]!.body}
+                    </p>
+                  </div>
+                  {LEARN_CARDS[learnIndex]!.diagram === "cycle" && <CycleDiagram />}
+                  {LEARN_CARDS[learnIndex]!.diagram === "arrow" && <ArrowDiagram />}
+                </motion.div>
+              </AnimatePresence>
+
+              <div className="pb-2">
+                <Button
+                  size="lg"
+                  className="w-full rounded-2xl h-14 text-base"
+                  onClick={() => {
+                    if (learnIndex < LEARN_CARDS.length - 1) setLearnIndex(learnIndex + 1);
+                    else setStep("pm");
+                  }}
+                >
+                  {LEARN_CARDS[learnIndex]!.cta ?? "다음"}
+                </Button>
               </div>
-              <div className="flex justify-center gap-1.5">
-                {LEARN_CARDS.map((_, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-full ${i === learnIndex ? "bg-primary" : "bg-border"}`} />
-                ))}
-              </div>
-              <Button
-                size="lg"
-                className="w-full rounded-2xl h-14"
-                onClick={() => {
-                  if (learnIndex < LEARN_CARDS.length - 1) setLearnIndex(learnIndex + 1);
-                  else setStep("pm");
-                }}
-              >
-                {learnIndex < LEARN_CARDS.length - 1 ? "다음" : "다 읽었어요"}
-              </Button>
             </motion.div>
           ) : step === "survey" ? (
             <motion.div
