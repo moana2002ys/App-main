@@ -50,7 +50,7 @@ function PMSliderCard({
         step={1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--primary,#F59E0B)] h-2 cursor-pointer"
+        className="w-full accent-primary h-2 cursor-pointer"
         aria-label={title}
       />
       <div className="flex justify-between text-[11px] text-muted-foreground">
