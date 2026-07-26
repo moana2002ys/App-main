@@ -99,8 +99,8 @@ export function Growth() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-5 pb-8 space-y-5">
-        {/* 요약 — '연속'은 자랑스러운 기록으로만, 끊겨도 잃는 것 없음 */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* 요약 — 스트릭(연속) 표시 금지. 누적값만 보여준다(끊겨도 잃지 않음) */}
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-[20px] p-4 border border-card-border shadow-sm text-center">
             <p className="text-[11px] text-muted-foreground mb-1">함께한 날</p>
             <p className="text-xl font-bold text-foreground">{user.dayCount}<span className="text-xs font-medium text-muted-foreground ml-0.5">일</span></p>
@@ -108,10 +108,6 @@ export function Growth() {
           <div className="bg-white rounded-[20px] p-4 border border-card-border shadow-sm text-center">
             <p className="text-[11px] text-muted-foreground mb-1">모은 조각</p>
             <p className="text-xl font-bold text-foreground">{user.totalCompletions}<span className="text-xs font-medium text-muted-foreground ml-0.5">개</span></p>
-          </div>
-          <div className="bg-white rounded-[20px] p-4 border border-card-border shadow-sm text-center">
-            <p className="text-[11px] text-muted-foreground mb-1">이어온 날</p>
-            <p className="text-xl font-bold text-foreground">{user.streakDays}<span className="text-xs font-medium text-muted-foreground ml-0.5">일</span></p>
           </div>
         </div>
 

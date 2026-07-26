@@ -267,9 +267,9 @@ export function StatsSection() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      {/* 연속 참여 · 모은 조각 */}
+      {/* 함께한 날 · 모은 조각 — 스트릭(연속) 표시 금지: 끊겨서 잃는 경험을 만들지 않는다 */}
       <div className="grid grid-cols-2 gap-3">
-        <SummaryCard label="연속 참여" value={user.streakDays} unit="일" emoji="🔥" />
+        <SummaryCard label="함께한 날" value={user.dayCount} unit="일" emoji="🌱" />
         <SummaryCard label="모은 조각" value={user.totalCompletions} unit="개" emoji="🧩" />
       </div>
 

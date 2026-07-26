@@ -54,12 +54,12 @@ export function RetrospectiveSection() {
     });
   }
 
-  // 연속 참여
-  if (user.streakDays >= 3) {
+  // 누적 참여 — 스트릭(연속) 표시 금지. 끊겨도 사라지지 않는 누적값만 축하한다.
+  if (user.totalCompletions >= 3) {
     milestones.push({
-      icon: "🔥",
-      title: `${user.streakDays}일 연속 함께했어요`,
-      desc: "꾸준함이 곧 당신의 힘이 되고 있어요.",
+      icon: "🧩",
+      title: `조각 ${user.totalCompletions}개를 모았어요`,
+      desc: "쌓인 조각은 사라지지 않아요.",
     });
   }
 
