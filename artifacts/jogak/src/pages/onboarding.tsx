@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAppStore, emptyKnowYourself } from "@/lib/store";
+import { todayKey } from "@/lib/day";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,9 +16,26 @@ const COLORS = [
   { id: "#F472B6", name: "부드러운 분홍" }
 ];
 
-// step 0: 인트로 / 1~N: 설문 문항(JSON 단일 출처, 한 번에 하나씩) / N+1: 닉네임·캐릭터 색
+// 설계철학 — 문항을 묻기 '전에' 약속부터 한다.
+// 팀 불변 원칙(스트릭 미표시·보상 회수 없음·낙인 언어 금지)을 사용자 언어로 옮긴 것이다.
+const INTRO_CARDS: { title: string; body: string; note?: string }[] = [
+  {
+    title: "반가워요.",
+    body: "조각조각은 하루에 하나,\n아주 작은 조각을 함께 모으는 공간이에요.",
+  },
+  {
+    title: "여기선 아무도\n재촉하지 않아요",
+    body: "안 한 날이 있어도 그대로 이어가요.\n며칠 연속 했는지 세지 않고,\n한 번 모은 조각을 도로 가져가지도 않아요.",
+  },
+  {
+    title: "몇 가지만\n여쭤볼게요",
+    body: "답은 오늘 어떤 조각을 놓아둘지\n고르는 데에만 써요.\n어딘가에 보여지거나 등급을 매기지 않아요.",
+  },
+];
+
+// step 0~2: 설계철학 인트로 / 그 다음 N개: 설문 문항(JSON 단일 출처) / 마지막: 닉네임·캐릭터 색
 export function Onboarding() {
-  const { updateUser, setView } = useAppStore();
+  const { user, updateUser, setView } = useAppStore();
   // 첫 실행은 고립 여부를 가르는 은둔 체크(sc_q1·sc_q2)만.
   // 나머지 상황 체크리스트(ss1~ss15)는 온보딩 주간 Day2 미션으로 진행한다.
   const items = useMemo(
@@ -29,10 +47,13 @@ export function Onboarding() {
   const [nickname, setNickname] = useState("");
   const [color, setColor] = useState("#FBBF24");
 
+  const introCount = INTRO_CARDS.length;
   const totalSteps = items.length;
-  const currentItem = step >= 1 && step <= totalSteps ? items[step - 1] : null;
-  // 진행 표시: 숫자 없이 부드러운 게이지만
-  const progress = step >= 1 && step <= totalSteps ? step / (totalSteps + 1) : 0;
+  const inIntro = step < introCount;
+  const currentItem =
+    step >= introCount && step < introCount + totalSteps ? items[step - introCount] : null;
+  // 진행 표시: 숫자 없이 부드러운 게이지만(설문 구간에서만)
+  const progress = currentItem ? (step - introCount + 1) / (totalSteps + 1) : 0;
 
   const handleAnswer = (v: number) => {
     if (!currentItem) return;
@@ -59,11 +80,15 @@ export function Onboarding() {
       currentBandLow: result.baseBandLow,
       currentBandHigh: result.baseBandHigh,
       forbidden: result.forbidden,
-      // 설문 직후 바로 1주 고정 미션(온보딩 주간)으로 — 심리교육 카드는 생략(2026-07-24 결정)
       phase: 'onboarding_week',
       onboardingWeek: emptyOnboardingWeek(),
+      // 온보딩을 시작한 날 = 이 사람의 Day1. 여기서부터 각자의 달력이 흐른다.
+      startedAt: user.startedAt ?? todayKey(),
+      lastSeenDate: todayKey(),
+      dayCount: 1,
     });
-    setView("onboarding_week");
+    // 설문 → 맛보기 챌린지(첫 성공) → 앱 원리 설명 → 온보딩 주간
+    setView("taster");
   };
 
   return (
@@ -89,31 +114,51 @@ export function Onboarding() {
           </div>
         )}
       </div>
-      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+      {/* justify-center 대신 자식 my-auto: 선택지가 길어 넘칠 때 위가 잘리지 않고 스크롤된다 */}
+      <div className="flex-1 flex flex-col overflow-y-auto max-w-sm mx-auto w-full">
         <AnimatePresence mode="wait">
-          {step === 0 ? (
+          {inIntro ? (
             <motion.div
-              key="intro"
+              key={`intro-${step}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8 flex flex-col items-center text-center"
+              className="space-y-8 flex flex-col items-center text-center my-auto w-full"
             >
               <div className="my-6">
                 <Character className="scale-125" showItems={false} />
               </div>
 
               <div className="space-y-3">
-                <h1 className="text-2xl font-medium text-foreground">반가워요.</h1>
-                <p className="text-muted-foreground leading-relaxed">
-                  조각조각은 하루에 하나,<br />
-                  아주 작은 조각을 함께 모으는 공간이에요.
+                <h1 className="text-2xl font-medium text-foreground whitespace-pre-line leading-snug">
+                  {INTRO_CARDS[step]!.title}
+                </h1>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {INTRO_CARDS[step]!.body}
                 </p>
-                <p className="text-sm text-muted-foreground">{firstLaunchIntro}</p>
+                {step === introCount - 1 && (
+                  <p className="text-sm text-muted-foreground">{firstLaunchIntro}</p>
+                )}
               </div>
 
-              <Button size="lg" className="w-full rounded-2xl mt-4 h-14" onClick={() => setStep(1)}>
-                천천히 시작하기
+              {/* 인트로 진행 점 — 숫자 대신 점으로만 */}
+              <div className="flex gap-1.5" aria-hidden="true">
+                {INTRO_CARDS.map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === step ? "w-5 bg-primary/60" : "w-1.5 bg-secondary"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full rounded-2xl mt-2 h-14"
+                onClick={() => setStep(step + 1)}
+              >
+                {step === introCount - 1 ? "천천히 시작하기" : "다음"}
               </Button>
             </motion.div>
           ) : currentItem ? (
@@ -122,7 +167,7 @@ export function Onboarding() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="space-y-6 my-auto w-full py-4"
             >
               <div className="flex justify-center mb-6">
                 <Character size="sm" showItems={false} />
@@ -133,12 +178,13 @@ export function Onboarding() {
                 <div className="absolute top-0 -left-3 w-4 h-4 bg-white border-l border-t border-border/50 transform -skew-x-[20deg]"></div>
               </div>
 
-              <div className={`mt-6 ${currentItem.options.length > 5 ? 'grid grid-cols-2 gap-2.5' : 'space-y-3'}`}>
+              {/* 선택지는 항상 1열 — 2열 격자는 시선이 갈지자로 움직여 읽기 어렵다(8.12 피드백) */}
+              <div className={`mt-6 ${currentItem.options.length > 5 ? 'space-y-2' : 'space-y-3'}`}>
                 {currentItem.options.map((opt) => (
                   <Button
                     key={`${currentItem.id}-${opt.v}`}
                     variant="outline"
-                    className={`w-full justify-start text-left h-auto rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal ${currentItem.options.length > 5 ? 'py-3 px-4 text-sm' : 'py-4 px-6'}`}
+                    className={`w-full justify-start text-left h-auto rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal ${currentItem.options.length > 5 ? 'py-3 px-5 text-[15px]' : 'py-4 px-6'}`}
                     onClick={() => handleAnswer(opt.v)}
                   >
                     {opt.label}
@@ -152,7 +198,7 @@ export function Onboarding() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8 flex flex-col items-center text-center"
+              className="space-y-8 flex flex-col items-center text-center my-auto w-full"
             >
               <div className="space-y-2">
                 <h2 className="text-2xl font-medium text-foreground">거의 다 왔어요.</h2>

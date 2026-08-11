@@ -628,7 +628,9 @@ export interface OnboardingMission {
 }
 
 export const ONBOARDING_WEEK: OnboardingMission[] = [
-  { day: 1, title: "고립과 은둔, 가볍게 알아보기", minutes: 3, area: AREAS.selfcare, kind: "learn" },
+  // Day1 제목에 고립·은둔 같은 상태 라벨을 쓰지 않는다(낙인 언어 비노출 원칙, 8.12 피드백).
+  // 첫 실행의 '앱 원리 3장'(앱이 어떻게 작동하나)과 겹치지 않게, 여긴 BA 기전(왜 효과가 있나)임이 드러나는 제목.
+  { day: 1, title: "작은 행동이 기분을 바꾸는 이유", minutes: 3, area: AREAS.selfcare, kind: "learn" },
   { day: 2, title: "내 상황 돌아보기 체크리스트", minutes: 5, area: AREAS.selfcare, kind: "survey" },
   { day: 3, title: "물 한 잔 마시기", minutes: 1, area: AREAS.rhythm },
   { day: 4, title: "커튼 걷고 잠깐 환기하기", minutes: 2, area: AREAS.rhythm },
@@ -642,6 +644,53 @@ export const ONBOARDING_WEEK: OnboardingMission[] = [
   },
   { day: 7, title: "좋아하는 노래 1곡 듣기", minutes: 4, area: AREAS.selfcare },
 ];
+
+// ── 맛보기 챌린지 ──────────────────────────────────────────
+// 설문 직후 그 자리에서 하나 해보는 구간. 목적은 데이터 수집이 아니라
+// "여기서 뭔가 하나 해냈다"는 첫 성공 경험을 5분 안에 만드는 것.
+// 전부 실내·혼자·1~4분이라 은둔 단계의 게이트(외출·대면·전화)에 걸리지 않는다.
+export interface TasterMission {
+  id: string;
+  title: string;
+  hint: string;
+  minutes: number;
+  area: Area;
+}
+
+export const TASTER_MISSIONS: TasterMission[] = [
+  {
+    id: "taster_water",
+    title: "물 한 잔 마시기",
+    hint: "미지근한 물이면 더 좋아요. 반 잔만 마셔도 한 거예요.",
+    minutes: 1,
+    area: AREAS.rhythm,
+  },
+  {
+    id: "taster_stretch",
+    title: "기지개 한 번 크게 켜기",
+    hint: "누운 채로도 괜찮아요. 팔만 뻗어도 돼요.",
+    minutes: 1,
+    area: AREAS.selfcare,
+  },
+  {
+    id: "taster_window",
+    title: "창문 열고 바깥 공기 마시기",
+    hint: "나가지 않아도 돼요. 창문만 살짝 열면 충분해요.",
+    minutes: 2,
+    area: AREAS.rhythm,
+  },
+  {
+    id: "taster_song",
+    title: "좋아하는 노래 한 곡 듣기",
+    hint: "아무 노래나 괜찮아요. 끝까지 안 들어도 돼요.",
+    minutes: 4,
+    area: AREAS.selfcare,
+  },
+];
+
+export function getTasterMission(id: string): TasterMission | null {
+  return TASTER_MISSIONS.find((m) => m.id === id) ?? null;
+}
 
 export function getOnboardingMission(day: number, forbidden: string[]): OnboardingMission {
   const m = ONBOARDING_WEEK[Math.max(0, Math.min(6, day - 1))]!;

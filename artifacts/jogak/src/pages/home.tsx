@@ -8,6 +8,8 @@ import { useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { Area, AREAS } from "@/lib/classifier";
 import { knowYourselfCardCopy, getChapters } from "@/lib/survey";
 import { fileToDataUrl } from "@/lib/image";
+import { formatKorean, todayKey } from "@/lib/day";
+import { isDemoMode } from "@/lib/demo";
 import {
   DaySlot,
   SLOT_BADGE,
@@ -425,7 +427,8 @@ export function Home() {
     !!user.stage &&
     !(ky?.finalized) &&
     (ky?.lastChapterDay ?? null) !== user.dayCount &&
-    user.dayCount >= kyDueDay;
+    // 시연 모드에서는 주 1챕터 '예정일'을 기다리지 않는다(하루 1장 제한은 그대로).
+    (user.dayCount >= kyDueDay || isDemoMode());
 
   const knowCard = showKnowCard ? (
     <motion.div
@@ -475,6 +478,7 @@ export function Home() {
           <h2 className="text-sm font-medium text-muted-foreground">
             Day {user.dayCount} · {user.nickname || "조각이 친구"}님
           </h2>
+          <p className="text-[11px] text-muted-foreground/70">{formatKorean(todayKey())}</p>
         </div>
         <div className="flex items-center gap-2">
           <button

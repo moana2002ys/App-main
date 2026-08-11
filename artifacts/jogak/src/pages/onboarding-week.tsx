@@ -13,6 +13,8 @@ import {
 } from "@/lib/ba";
 import { getFirstLaunchItems } from "@/lib/survey";
 import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
+import { dateKeyForDay } from "@/lib/store";
+import { formatKorean, formatRelative, todayKey } from "@/lib/day";
 
 // Day1 심리교육 슬라이드 — 진단·낙인 언어 없이, '상태'와 '작은 행동'의 이야기만.
 type LearnFace = "frown" | "wink" | "smile" | "joy";
@@ -144,9 +146,11 @@ type Step = "journey" | "mood" | "mission" | "learn" | "survey" | "pm" | "intere
 // 온보딩 1주: 지정된 하루 1개 초소형 미션이라 '오늘 뭘 할까'가 아니라
 // '7일 여정 위 어디쯤인가'가 보여야 한다 → 타임라인이 기본 화면.
 export function OnboardingWeek() {
-  const { user, updateUser, setView } = useAppStore();
+  const { user, updateUser, setView, nextDay } = useAppStore();
   const week = user.onboardingWeek ?? emptyOnboardingWeek();
-  const dayIdx = Math.min(week.dayIndex, 7); // 1~7
+  // Day는 실제 달력에서 나온다 — 가입일(startedAt)이 사람마다 다르므로
+  // 같은 날 앱을 열어도 각자 다른 Day를 본다. week.dayIndex는 호환용으로만 남긴다.
+  const dayIdx = Math.min(Math.max(user.dayCount, 1), 7); // 1~7
   const mission = getOnboardingMission(dayIdx, user.forbidden);
 
   const [step, setStep] = useState<Step>("journey");
@@ -163,25 +167,34 @@ export function OnboardingWeek() {
   const todayEntry = entries.find((e) => e.day === dayIdx) ?? null;
   const completedCount = entries.filter((e) => e.completed).length;
 
+  // Day N ↔ 실제 날짜 대응. 가입일이 다르면 같은 Day라도 달력 날짜가 다르다.
+  const today = todayKey();
+  const nextDayKey = dateKeyForDay(user, dayIdx + 1);
+  const nextDayLabel = nextDayKey ? formatRelative(nextDayKey, today) : "내일";
+
   const finishDay = (entry: OnboardingDayEntry) => {
     updateUser({
-      onboardingWeek: { ...week, entries: [...entries.filter((e) => e.day !== entry.day), entry] },
+      onboardingWeek: {
+        ...week,
+        dayIndex: dayIdx,
+        entries: [...entries.filter((e) => e.day !== entry.day), entry],
+      },
     });
     setStep("journey");
   };
 
-  const goNextDay = () => {
+  // 시연용 하루 넘기기. 실제 사용자는 날짜가 바뀌어야 다음 Day가 열린다
+  // (store의 syncToday가 자정마다 dayCount를 올린다).
+  const advanceDayForDemo = () => {
     if (dayIdx >= 7) {
       setStep("interests");
       return;
     }
-    updateUser({
-      onboardingWeek: { ...week, entries, dayIndex: dayIdx + 1 },
-      dayCount: user.dayCount + 1,
-    });
+    updateUser({ onboardingWeek: { ...week, entries, dayIndex: dayIdx + 1 } });
     setMood(null);
     setP(null);
     setStep("journey");
+    nextDay();
   };
 
   const finishWeek = () => {
@@ -190,12 +203,13 @@ export function OnboardingWeek() {
     updateUser({
       onboardingWeek: finalWeek,
       phase: 'cycle',
-      cycleStartDay: user.dayCount + 1,
-      dayCount: user.dayCount + 1,
+      // dayCount는 이제 달력에서 파생되므로 여기서 임의로 올리지 않는다.
+      // 본 사이클 기준일 = 온보딩을 마친 오늘.
+      cycleStartDay: user.dayCount,
       moodBaseline: summary.moodBaseline,
       areaPM: summary.initialAreaPM,
       interests: selectedInterests,
-      interestAskedDay: user.dayCount + 1,
+      interestAskedDay: user.dayCount,
       // 온보딩 skip_pattern: 명시적 skip ≥2회면 회피 슬롯 1주차 조기 활성화
       skipLog: [],
       daily: null,
@@ -240,6 +254,7 @@ export function OnboardingWeek() {
               className="flex-1 flex flex-col"
             >
               <div className="pt-4 pb-6 space-y-1.5">
+                <p className="text-xs text-muted-foreground">{formatKorean(today)}</p>
                 <h1 className="text-2xl font-semibold text-foreground">나의 시작 데이터 쌓기</h1>
                 <p className="text-sm text-muted-foreground">7일 동안 아주 작은 조각을 모아봐요</p>
               </div>
@@ -292,6 +307,10 @@ export function OnboardingWeek() {
                           <div className="flex items-center justify-between">
                             <p className={`text-[11px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                               Day {d}
+                              {(() => {
+                                const k = dateKeyForDay(user, d);
+                                return k ? ` · ${formatKorean(k)}` : "";
+                              })()}
                             </p>
                             {isPast && entry && (
                               <span className="text-[11px] text-muted-foreground">
@@ -334,12 +353,33 @@ export function OnboardingWeek() {
                 <Character size="sm" />
               </div>
 
-              {/* 오늘 기록이 끝났으면 다음으로 */}
+              {/* 오늘 몫이 끝났으면 — 다음 조각은 실제로 날짜가 바뀌어야 열린다 */}
               {todayEntry && (
-                <div className="mt-4">
-                  <Button size="lg" className="w-full rounded-2xl h-13" onClick={goNextDay}>
-                    {dayIdx >= 7 ? "일주일 마무리하기" : "다음 날로 → (데모)"}
-                  </Button>
+                <div className="mt-4 space-y-2">
+                  {dayIdx >= 7 ? (
+                    <Button
+                      size="lg"
+                      className="w-full rounded-2xl h-13"
+                      onClick={() => setStep("interests")}
+                    >
+                      일주일 마무리하기
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="rounded-2xl border border-border/50 bg-white px-5 py-4 text-center">
+                        <p className="text-sm text-foreground">오늘 몫은 여기까지예요.</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          다음 조각은 {nextDayLabel}에 열려요.
+                        </p>
+                      </div>
+                      <button
+                        onClick={advanceDayForDemo}
+                        className="w-full py-2 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                      >
+                        다음 날로 넘기기 (시연용)
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </motion.div>

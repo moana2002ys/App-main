@@ -7,6 +7,7 @@ import { PhoneFrame } from "@/components/PhoneFrame";
 
 import { Auth } from "@/pages/auth";
 import { Onboarding } from "@/pages/onboarding";
+import { Taster } from "@/pages/taster";
 import { OnboardingWeek } from "@/pages/onboarding-week";
 import { DailyCheckin } from "@/pages/daily-checkin";
 import { KnowYourself } from "@/pages/know-yourself";
@@ -30,6 +31,7 @@ function MainFlow() {
       )}
       {view === 'auth' && <Auth />}
       {view === 'onboarding' && <Onboarding />}
+      {view === 'taster' && <Taster />}
       {view === 'onboarding_week' && <OnboardingWeek />}
       {view === 'daily_checkin' && <DailyCheckin />}
       {view === 'know_yourself' && <KnowYourself />}
