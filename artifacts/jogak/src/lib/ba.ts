@@ -620,6 +620,9 @@ export interface PlanSlotsParams {
   // 의향 문항에서 '해보고 싶어요'로 직접 연 영역들 — 각각 L1 조각 1개를 후보에 추가.
   // 난이도는 항상 L1 고정(성공확률 최대화), 안전 게이트는 여기서도 재확인한다.
   readinessOpenAreas?: Area[];
+  // 자율성 레벨에 따른 하루 제안 개수: A0 = 1~3개, A1+ = 3~5개.
+  // 5개 구성 = 타깃2 + 즐거움1 + 회피1 + 직접 연 조각(explore)1.
+  autonomyLevel?: number;
 }
 
 // 첫 주 3슬롯(타깃2+즐거움1), 2주차부터 회피 슬롯 추가.
@@ -743,7 +746,9 @@ export function planTodaySlots(params: PlanSlotsParams): DaySlot[] {
     if (exploreMissions[0]) push("explore", exploreMissions[0]);
   }
 
-  return slots;
+  // 제안 개수 원칙: A0 = 최대 3개(타깃 위주 + 즐거움), A1+ = 최대 5개.
+  const cap = (params.autonomyLevel ?? 1) <= 0 ? 3 : 5;
+  return slots.slice(0, cap);
 }
 
 // ── 진급(주 1회 배치) ───────────────────────────────────────

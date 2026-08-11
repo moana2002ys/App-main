@@ -126,6 +126,7 @@ export function DailyCheckin() {
       earlyAvoidance,
       pleasureBoostArea: user.pleasureBoostArea,
       readinessOpenAreas: readinessOpenAreas(user.areaReadiness),
+      autonomyLevel: user.autonomyLevel,
     });
   }, [mood, user.stage, user.phase, user.forbidden, user.areaReadiness]);
 
@@ -483,9 +484,7 @@ export function DailyCheckin() {
                     </p>
 
                     <div className="space-y-2.5">
-                      {candidates
-                        .filter((slot) => canModifyPlan || slot.id === defaultSlot?.id)
-                        .map((slot) => {
+                      {candidates.map((slot) => {
                         const isSelected = selected.includes(slot.id);
                         const e = edits[slot.id] ?? {};
                         const timeOfDay = e.timeOfDay !== undefined ? e.timeOfDay : slot.timeOfDay;
