@@ -6,15 +6,17 @@ import { DecoEquipped, PlacedFurniture } from "./decor";
 import {
   AreaPMMap,
   AreaReadinessMap,
+  AutonomyLevel,
+  AutonomySignals,
   DayRecord,
   DaySlot,
   OnboardingWeekState,
   SkipEntry,
   adjustBandNextDayV2,
-  checkPromotion,
   classifyDayResult,
   accumulateAreaPM,
-  nextStage,
+  emptyAutonomySignals,
+  evaluateAutonomyLevel,
 } from "./ba";
 
 export type ViewState =
@@ -69,6 +71,10 @@ export interface UserState {
   // 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회). '해보고 싶어요'만 계획 후보에 반영.
   areaReadiness: AreaReadinessMap;
   readinessAskedDay: number | null; // 마지막으로 의향 문항을 보여준 dayCount
+  // 자율성 사다리(A0~A4) — 내부 레벨. 권한 개방일 뿐 요구 아님. 강등·노출 없음.
+  autonomyLevel: AutonomyLevel;
+  autonomySignals: AutonomySignals;
+  autonomyCheckDay: number | null; // 마지막 주간 판정 dayCount
   areaPM: AreaPMMap; // 영역별 P/M 누적(즐거움 슬롯 가중치 + 마이페이지)
   skipLog: SkipEntry[]; // 명시적 skip 원장
   dayRecords: DayRecord[]; // 하루 요약 원장(그래프·진급 배치)
@@ -143,6 +149,9 @@ const defaultUser: UserState = {
   interestBoostUntil: null,
   areaReadiness: {},
   readinessAskedDay: null,
+  autonomyLevel: 0,
+  autonomySignals: emptyAutonomySignals(),
+  autonomyCheckDay: null,
   areaPM: {},
   skipLog: [],
   dayRecords: [],
@@ -338,23 +347,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const newDay = prev.dayCount + 1;
 
-      // 진급: 주 1회 배치(밴드와 독립). 거절 시 2주 뒤 재제안. 강등 없음.
-      let promotionOffer = prev.promotionOffer;
-      let lastPromotionCheckDay = prev.lastPromotionCheckDay;
-      let promotionEvaluated = prev.promotionEvaluated;
-      const canPromote = prev.stage && nextStage(prev.stage) !== null;
+      // 오늘 완료된 직접 연/직접 만든 조각 → 자율성 신호 집계
+      const doneToday = slots.filter((s) => s.status === 'completed');
+      const autonomySignals: AutonomySignals = {
+        ...prev.autonomySignals,
+        exploreCompletions:
+          prev.autonomySignals.exploreCompletions +
+          doneToday.filter((s) => s.kind === 'explore').length,
+        selfCompletions:
+          prev.autonomySignals.selfCompletions +
+          doneToday.filter((s) => s.kind === 'self').length,
+      };
+
+      // 자율성 레벨: 주 1회 배치(단계 진급 배치를 대체 — 허용영역·진급 개념 폐지).
+      // 권한 개방만 있고 강등 없음. 레벨업 시 조각이의 한 줄(성장 프레이밍)로만 표면화.
+      let autonomyLevel = prev.autonomyLevel;
+      let autonomyCheckDay = prev.autonomyCheckDay;
+      let autonomyMessage: string | null = null;
       const cycleStart = prev.cycleStartDay ?? prev.dayCount;
-      const sinceLastCheck = lastPromotionCheckDay === null
+      const sinceAutonomyCheck = autonomyCheckDay === null
         ? newDay - cycleStart
-        : newDay - lastPromotionCheckDay;
-      const declinedRecently =
-        prev.promotionDeclinedDay !== null && newDay - prev.promotionDeclinedDay < 14;
-      if (canPromote && !promotionOffer && sinceLastCheck >= 7 && !declinedRecently) {
-        lastPromotionCheckDay = newDay;
-        const ok = checkPromotion(dayRecords, newDay, !promotionEvaluated);
-        promotionEvaluated = true;
-        if (ok) promotionOffer = true;
+        : newDay - autonomyCheckDay;
+      if (sinceAutonomyCheck >= 7) {
+        autonomyCheckDay = newDay;
+        const evaled = evaluateAutonomyLevel(autonomyLevel, autonomySignals, dayRecords, newDay);
+        autonomyLevel = evaled.level;
+        autonomyMessage = evaled.message;
       }
+
+      // (구) 단계 진급 배치는 폐지 — promotionOffer는 더 이상 켜지지 않는다.
+      const promotionOffer = false;
+      const lastPromotionCheckDay = prev.lastPromotionCheckDay;
+      const promotionEvaluated = prev.promotionEvaluated;
 
       // 4주마다 금지조건 1개 가벼운 재확인(게이트 플래그만 갱신)
       let gateRecheckPending = prev.gateRecheckPending;
@@ -380,8 +404,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lowMStreak: adj.lowMStreak,
         nudgeDefaultNormal: adj.nudgeDefaultNormal,
         pleasureBoostArea,
-        lastMessage: adj.message,
+        lastMessage: autonomyMessage ?? adj.message, // 레벨업 한 줄이 있으면 우선
         streakDays,
+        autonomySignals,
+        autonomyLevel,
+        autonomyCheckDay,
         promotionOffer,
         lastPromotionCheckDay,
         promotionEvaluated,

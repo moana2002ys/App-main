@@ -22,6 +22,8 @@ import {
   READINESS_ACK,
   READINESS_ASK_INTERVAL,
   ReadinessAnswer,
+  validateSelfProposal,
+  buildSelfSlot,
 } from "@/lib/ba";
 
 const INTERESTS = [
@@ -70,18 +72,28 @@ export function DailyCheckin() {
   const { updateUser, setView, user } = useAppStore();
   const [opened, setOpened] = useState(false);
 
+  // 자율성 레벨(A0~A4)에 따른 권한 개방 — 숫자·단계명은 UI에 절대 비노출.
+  const canModifyPlan = user.autonomyLevel >= 1; // 교체·추가·시간대·강도
+  const canOpenAreas = user.autonomyLevel >= 2; // 의향 카드(새 영역 관문)
+  const canSelfPropose = user.autonomyLevel >= 3; // 나만의 조각 직접 만들기
+
   const needGateRecheck = !!user.gateRecheckPending;
   const needInterestCard =
     user.interestAskedDay === null || user.dayCount - user.interestAskedDay >= 7;
-  // 의향 카드: 주기 도래 + 물어볼 영역 존재 + 오늘 관심사 카드가 없을 때만(카드 겹침 방지).
+  // 의향 카드: 레벨 개방 + 주기 도래 + 물어볼 영역 존재 + 오늘 관심사 카드가 없을 때만.
+  // 후보 선정은 부담도 랭킹(D): 문턱 낮고 부담 신호 작은 영역부터.
   const readinessArea = useMemo(
-    () => readinessCandidateArea(user.stage, user.forbidden, user.areaReadiness, user.dayCount),
-    [user.stage, user.forbidden, user.areaReadiness, user.dayCount],
+    () =>
+      readinessCandidateArea(
+        user.stage, user.forbidden, user.areaReadiness, user.dayCount, user.areaSeeds,
+      ),
+    [user.stage, user.forbidden, user.areaReadiness, user.dayCount, user.areaSeeds],
   );
   const readinessDue =
     user.readinessAskedDay === null ||
     user.dayCount - user.readinessAskedDay >= READINESS_ASK_INTERVAL;
-  const needReadinessCard = !needInterestCard && readinessDue && readinessArea !== null;
+  const needReadinessCard =
+    canOpenAreas && !needInterestCard && readinessDue && readinessArea !== null;
 
   // step: 'gate' | 'interest' | 'readiness' | 'main'
   const [step, setStep] = useState<'gate' | 'interest' | 'readiness' | 'main'>(
@@ -174,14 +186,40 @@ export function DailyCheckin() {
         [readinessArea]: { day: user.dayCount, answer },
       },
       readinessAskedDay: user.dayCount,
+      ...(answer === 'yes' && {
+        autonomySignals: {
+          ...user.autonomySignals,
+          readinessYes: user.autonomySignals.readinessYes + 1,
+        },
+      }),
     });
     setReadinessAck(READINESS_ACK[answer]);
     setStep('main');
   };
 
+  // 나만의 조각(A3+): 결정적 가드만 통과하면 계획에 담김. 정식 버전은 LLM 다듬기.
+  const [selfInput, setSelfInput] = useState("");
+  const [selfError, setSelfError] = useState<string | null>(null);
+  const [selfSlots, setSelfSlots] = useState<DaySlot[]>([]);
+  const totalPlanned = selected.length + selfSlots.length;
+
+  const handleSelfPropose = () => {
+    const check = validateSelfProposal(selfInput);
+    if (!check.ok) { setSelfError(check.reason ?? null); return; }
+    if (totalPlanned >= MAX_PLAN) return;
+    setSelfSlots((prev) => [
+      ...prev,
+      buildSelfSlot(user.dayCount, prev.length, selfInput),
+    ]);
+    setSelfInput("");
+    setSelfError(null);
+  };
+
   // 계획 확정: 담은 조각 = accepted, 나머지 후보 = proposed(홈의 "더 하고 싶다면"으로).
+  // 자율성 신호 집계: 기본값 수락 / 교체 / 추가 / 자기 제안 — 레벨 판정(E)의 원천.
   const handleConfirm = (ids: string[], useEdits: boolean) => {
-    if (mood === null || ids.length === 0) return;
+    if (mood === null || (ids.length === 0 && selfSlots.length === 0)) return;
+    const defaultId = defaultSlot?.id;
     const finalSlots = candidates.map((s) => {
       if (!ids.includes(s.id)) return s;
       const e = useEdits ? (edits[s.id] ?? {}) : {};
@@ -192,9 +230,19 @@ export function DailyCheckin() {
         status: "accepted" as const,
       };
     });
+    const acceptedDefault = defaultId !== undefined && ids.includes(defaultId);
+    const extraPicks = ids.filter((id) => id !== defaultId).length;
+    const s = user.autonomySignals;
     updateUser({
       daily: { mood, area: 'unknown' },
-      todaySlots: finalSlots,
+      todaySlots: [...finalSlots, ...selfSlots],
+      autonomySignals: {
+        ...s,
+        defaultAccepts: s.defaultAccepts + (acceptedDefault && extraPicks === 0 ? 1 : 0),
+        swaps: s.swaps + (!acceptedDefault && extraPicks > 0 ? 1 : 0),
+        adds: s.adds + (acceptedDefault ? extraPicks : Math.max(0, extraPicks - 1)),
+        selfProposals: s.selfProposals + selfSlots.length,
+      },
     });
     setView("home");
   };
@@ -424,14 +472,20 @@ export function DailyCheckin() {
                         <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">2</span>
                         <p className="text-sm font-medium text-foreground">오늘의 조각, 미리 담아뒀어요</p>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">{selected.length} / {MAX_PLAN}</span>
+                      {canModifyPlan && (
+                        <span className="text-[11px] text-muted-foreground">{totalPlanned} / {MAX_PLAN}</span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground -mt-2">
-                      이대로도 충분해요. 원하면 바꾸거나 더 담아도 돼요.
+                      {canModifyPlan
+                        ? "이대로도 충분해요. 원하면 바꾸거나 더 담아도 돼요."
+                        : "오늘은 이거 하나면 충분해요."}
                     </p>
 
                     <div className="space-y-2.5">
-                      {candidates.map((slot) => {
+                      {candidates
+                        .filter((slot) => canModifyPlan || slot.id === defaultSlot?.id)
+                        .map((slot) => {
                         const isSelected = selected.includes(slot.id);
                         const e = edits[slot.id] ?? {};
                         const timeOfDay = e.timeOfDay !== undefined ? e.timeOfDay : slot.timeOfDay;
@@ -444,9 +498,10 @@ export function DailyCheckin() {
                             }`}
                           >
                             <button
-                              onClick={() => toggleSelect(slot.id)}
+                              onClick={() => canModifyPlan && toggleSelect(slot.id)}
                               className="w-full flex items-start gap-3 p-4 text-left"
                               aria-pressed={isSelected}
+                              disabled={!canModifyPlan}
                             >
                               <span className="text-2xl leading-none pt-0.5">{activityEmoji(slot.title, slot.area)}</span>
                               <span className="flex-1 min-w-0">
@@ -455,19 +510,21 @@ export function DailyCheckin() {
                                   {SLOT_BADGE[slot.kind]} · 약 {slot.minutes}분
                                 </span>
                               </span>
-                              <span
-                                className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${
-                                  isSelected
-                                    ? "bg-primary border-primary text-white"
-                                    : "border-border/70 text-muted-foreground"
-                                }`}
-                                aria-hidden="true"
-                              >
-                                {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                              </span>
+                              {canModifyPlan && (
+                                <span
+                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? "bg-primary border-primary text-white"
+                                      : "border-border/70 text-muted-foreground"
+                                  }`}
+                                  aria-hidden="true"
+                                >
+                                  {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                                </span>
+                              )}
                             </button>
 
-                            {isSelected && (
+                            {isSelected && canModifyPlan && (
                               <div className="px-4 pb-4 space-y-2.5">
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-[11px] text-muted-foreground w-8 shrink-0">언제</span>
@@ -508,7 +565,44 @@ export function DailyCheckin() {
                       })}
                     </div>
 
-                    {selected.length >= MAX_PLAN && (
+                    {/* 나만의 조각 (A3+ 권한 개방 시에만 노출) */}
+                    {canSelfPropose && (
+                      <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/[0.03] p-4 space-y-2.5">
+                        <p className="text-sm font-medium text-foreground">나만의 조각 만들기</p>
+                        <p className="text-[11px] text-muted-foreground -mt-1">
+                          해보고 싶은 게 있다면 뭐든 적어보세요. 아주 작아도 좋아요.
+                        </p>
+                        {selfSlots.map((s, i) => (
+                          <div key={s.id} className="flex items-center justify-between rounded-xl bg-white border border-primary/30 px-3 py-2.5">
+                            <span className="text-sm text-foreground">{s.title}</span>
+                            <button
+                              onClick={() => setSelfSlots((prev) => prev.filter((_, j) => j !== i))}
+                              className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1"
+                            >
+                              빼기
+                            </button>
+                          </div>
+                        ))}
+                        {totalPlanned < MAX_PLAN && (
+                          <div className="flex gap-2">
+                            <input
+                              value={selfInput}
+                              onChange={(e) => { setSelfInput(e.target.value); setSelfError(null); }}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSelfPropose()}
+                              placeholder="예: 베란다에서 커피 한 잔"
+                              className="flex-1 rounded-xl border border-border/60 bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+                              aria-label="나만의 조각 입력"
+                            />
+                            <Button variant="outline" className="rounded-xl shrink-0" onClick={handleSelfPropose}>
+                              담기
+                            </Button>
+                          </div>
+                        )}
+                        {selfError && <p className="text-[11px] text-primary">{selfError}</p>}
+                      </div>
+                    )}
+
+                    {totalPlanned >= MAX_PLAN && (
                       <p className="text-[11px] text-muted-foreground text-center">
                         오늘은 이만하면 충분해요. 작게 시작하는 게 오래 가요.
                       </p>
@@ -518,12 +612,12 @@ export function DailyCheckin() {
                       <Button
                         size="lg"
                         className="w-full rounded-2xl h-14"
-                        disabled={selected.length === 0}
+                        disabled={totalPlanned === 0}
                         onClick={() => handleConfirm(selected, true)}
                       >
                         이대로 좋아요
                       </Button>
-                      {defaultSlot && (
+                      {canModifyPlan && defaultSlot && (
                         <button
                           onClick={() => handleConfirm([defaultSlot.id], false)}
                           className="w-full text-center text-xs text-muted-foreground py-1.5 hover:text-foreground transition-colors"
