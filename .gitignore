@@ -60,3 +60,6 @@ attached_assets/Behavioral-Activation-Cycle_*.zip
 *.key
 *.p12
 *.pfx
+
+# 로컬 개발용 내장 Postgres 데이터 (scripts/src/dev-db.ts)
+.devdb/

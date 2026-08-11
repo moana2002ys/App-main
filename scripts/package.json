@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "dev-db": "tsx ./src/dev-db.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "embedded-postgres": "17.10.0-beta.17",
     "tsx": "catalog:"
   }
 }
