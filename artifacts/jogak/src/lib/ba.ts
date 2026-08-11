@@ -89,12 +89,13 @@ export function effectiveLevel(
 }
 
 // ── 슬롯 ────────────────────────────────────────────────────
-export type SlotKind = "target" | "pleasure" | "avoidance";
+export type SlotKind = "target" | "pleasure" | "avoidance" | "explore";
 
 export const SLOT_BADGE: Record<SlotKind, string> = {
   target: "내가 고른 영역",
   pleasure: "즐거움 활동",
   avoidance: "조금 어려워했던 활동",
+  explore: "직접 열어본 조각",
 };
 
 // 왜 이 조각을 추천했는지(BA 근거) — 낙인 언어 없이 이유만.
@@ -102,7 +103,67 @@ export const SLOT_REASON: Record<SlotKind, string> = {
   target: "오늘 체크인에서 고른 방향과 이어지는 조각이에요.",
   pleasure: "최근 즐겁게 해낸 조각과 닮았어요. 즐거움은 회복의 연료거든요.",
   avoidance: "요즘 미뤄뒀던 조각을 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.",
+  explore: "궁금하다고 해줘서 준비했어요. 가장 가벼운 것부터, 부담되면 언제든 접어도 돼요.",
 };
+
+// ── 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회 회전) ──
+// 원칙: 묻는 것 자체가 개입(MI 준비도 룰러). 답이 무엇이든 평가·재촉 없음.
+// '해보고 싶어요'일 때만 그 영역의 L1 조각이 오늘 계획 후보에 추가된다(explore).
+// 안전 게이트(isAreaEligible)는 의향과 무관하게 항상 유지.
+export type ReadinessAnswer = "not_yet" | "curious" | "yes";
+
+export interface AreaReadinessEntry {
+  day: number; // 마지막으로 답한 dayCount
+  answer: ReadinessAnswer;
+}
+
+export type AreaReadinessMap = Partial<Record<Area, AreaReadinessEntry>>;
+
+export const READINESS_OPTIONS: { value: ReadinessAnswer; label: string }[] = [
+  { value: "not_yet", label: "아직 마음이 안 가요" },
+  { value: "curious", label: "조금 궁금해요" },
+  { value: "yes", label: "해보고 싶어요" },
+];
+
+export const READINESS_ACK: Record<ReadinessAnswer, string> = {
+  not_yet: "알겠어요. 지금은 지금의 조각에 집중해요.",
+  curious: "좋아요, 아주 작은 것부터 살짝 준비해둘게요.",
+  yes: "좋아요! 오늘 아주 가벼운 것 하나를 준비했어요.",
+};
+
+// 문항 노출 주기: 주 1~2회(4일 간격). 같은 영역 재질문 쿨다운:
+// not_yet=14일(재촉 금지), curious=7일. yes는 열린 것으로 보고 재질문 없음.
+export const READINESS_ASK_INTERVAL = 4;
+const READINESS_COOLDOWN: Record<ReadinessAnswer, number> = {
+  not_yet: 14,
+  curious: 7,
+  yes: Infinity,
+};
+
+// 오늘 물어볼 미시도 영역 1개 — 허용 영역 밖 + 안전 게이트 통과 + 쿨다운 경과.
+export function readinessCandidateArea(
+  stage: Stage | null,
+  forbidden: string[],
+  readiness: AreaReadinessMap,
+  dayCount: number,
+): Area | null {
+  if (!stage) return null;
+  const allowed = getStageAllowedAreas(stage);
+  const order: Area[] = [AREAS.selfcare, AREAS.relationship, AREAS.social, AREAS.rhythm];
+  for (const area of order) {
+    if (allowed.includes(area)) continue;
+    if (!isAreaEligible(area, forbidden)) continue;
+    const entry = readiness[area];
+    if (!entry) return area;
+    if (dayCount - entry.day >= READINESS_COOLDOWN[entry.answer]) return area;
+  }
+  return null;
+}
+
+// '해보고 싶어요'로 열린 영역 목록(계획 후보 공급용). 안전 게이트는 호출부에서 재확인.
+export function readinessOpenAreas(readiness: AreaReadinessMap): Area[] {
+  return (Object.keys(readiness) as Area[]).filter((a) => readiness[a]?.answer === "yes");
+}
 
 // '나 알아가기' 고정 편성 — 5챕터를 첫 가입 후 7주 안에 모두 만나도록,
 // 본 사이클 시작(온보딩 1주 다음)부터 매주 1챕터씩 예정일을 배정한다.
@@ -447,6 +508,9 @@ export interface PlanSlotsParams {
   nudgeDefaultNormal: boolean;
   earlyAvoidance: boolean; // 온보딩 skip_pattern으로 조기 활성화
   pleasureBoostArea?: Area | null;
+  // 의향 문항에서 '해보고 싶어요'로 직접 연 영역들 — 각각 L1 조각 1개를 후보에 추가.
+  // 난이도는 항상 L1 고정(성공확률 최대화), 안전 게이트는 여기서도 재확인한다.
+  readinessOpenAreas?: Area[];
 }
 
 // 첫 주 3슬롯(타깃2+즐거움1), 2주차부터 회피 슬롯 추가.
@@ -547,6 +611,27 @@ export function planTodaySlots(params: PlanSlotsParams): DaySlot[] {
       });
       if (extra[0]) push("target", extra[0]);
     }
+  }
+
+  // 5 explore: 의향 문항으로 직접 연 영역 — 항상 L1 하나만, 허용 영역 밖이어도
+  // 사용자가 열었으면 후보에 올린다(안전 게이트만 불변).
+  const allowedNow = getStageAllowedAreas(stage);
+  for (const area of params.readinessOpenAreas ?? []) {
+    if (allowedNow.includes(area)) continue; // 이미 허용 영역이면 타깃 경로가 담당
+    if (!isAreaEligible(area, forbidden)) continue;
+    const exploreMissions = selectAreaMissions({
+      area,
+      bandLow: 1,
+      bandHigh: 1,
+      forbidden,
+      condition,
+      interest: interests[0],
+      rotation: rotation + 13,
+      count: 1,
+      avoidTitles: usedTitles,
+      usedCategories,
+    });
+    if (exploreMissions[0]) push("explore", exploreMissions[0]);
   }
 
   return slots;

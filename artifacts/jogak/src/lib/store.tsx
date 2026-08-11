@@ -5,6 +5,7 @@ import { GrowthEvent, emptyCounts } from "./rewards";
 import { DecoEquipped, PlacedFurniture } from "./decor";
 import {
   AreaPMMap,
+  AreaReadinessMap,
   DayRecord,
   DaySlot,
   OnboardingWeekState,
@@ -65,6 +66,9 @@ export interface UserState {
   interests: string[]; // 온보딩 수집 + 주 1회 갱신 카드
   interestAskedDay: number | null; // 마지막으로 관심사 카드를 보여준 dayCount
   interestBoostUntil: number | null; // 갱신 직후 3일 부스트 종료 dayCount
+  // 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회). '해보고 싶어요'만 계획 후보에 반영.
+  areaReadiness: AreaReadinessMap;
+  readinessAskedDay: number | null; // 마지막으로 의향 문항을 보여준 dayCount
   areaPM: AreaPMMap; // 영역별 P/M 누적(즐거움 슬롯 가중치 + 마이페이지)
   skipLog: SkipEntry[]; // 명시적 skip 원장
   dayRecords: DayRecord[]; // 하루 요약 원장(그래프·진급 배치)
@@ -137,6 +141,8 @@ const defaultUser: UserState = {
   interests: [],
   interestAskedDay: null,
   interestBoostUntil: null,
+  areaReadiness: {},
+  readinessAskedDay: null,
   areaPM: {},
   skipLog: [],
   dayRecords: [],
