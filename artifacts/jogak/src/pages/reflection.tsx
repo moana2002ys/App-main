@@ -43,16 +43,22 @@ function PMSliderCard({
         </span>
       </div>
       <p className="text-sm text-muted-foreground">{question}</p>
-      <input
-        type="range"
-        min={0}
-        max={10}
-        step={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-primary h-2 cursor-pointer"
-        aria-label={title}
-      />
+      <div className="flex gap-1.5" role="radiogroup" aria-label={title}>
+        {[1, 2, 3, 4, 5].map((v) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            aria-pressed={touched && value === v}
+            className={`flex-1 py-3 rounded-xl border text-sm transition-colors ${
+              touched && value === v
+                ? "bg-primary/10 border-primary/60 text-primary font-medium"
+                : "bg-white border-border/50 text-muted-foreground hover:border-primary/30"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
       <div className="flex justify-between text-[11px] text-muted-foreground">
         <span>{hintLow}</span>
         <span>{hintHigh}</span>
@@ -65,8 +71,8 @@ export function Reflection() {
   const { user, updateUser, setView } = useAppStore();
   const verifyMut = useVerifyChallengePhoto();
 
-  const [p, setP] = useState(5);
-  const [m, setM] = useState(5);
+  const [p, setP] = useState(3);
+  const [m, setM] = useState(3);
   const [pTouched, setPTouched] = useState(false);
   const [mTouched, setMTouched] = useState(false);
   const [memo, setMemo] = useState("");
@@ -105,7 +111,7 @@ export function Reflection() {
   };
 
   const handleFinish = () => {
-    // 미조작 시 내부 3 저장(0–10 원값 기준)
+    // 5점 척도(1~5, 2026-08-11 팀 결정). 미조작 시 내부 3 저장
     const pFinal = pTouched ? p : 3;
     const mFinal = mTouched ? m : 3;
 

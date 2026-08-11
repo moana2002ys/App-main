@@ -20,7 +20,7 @@ import {
 //  - 슬롯: 타깃 2 + 즐거움 1 + 회피 1 (본 사이클 첫 주는 3슬롯)
 //  - 난이도 합성 = B안(계획 우선형): clamp(밴드 + 토글). 기분은 계산 불개입,
 //    기분 ≤2일 때 토글 '기본값'만 가볍게로 추천.
-//  - 사후 P/M 0–10 슬라이더(완료만), 미조작 시 내부 3.
+//  - 사후 P/M 5점 탭(완료만), 미조작 시 내부 3. (2026-08-11 팀 결정: 0–10 슬라이더 → 5점)
 //  - adjustBandNextDayV2: day_result 3분기, 완료→하향 없음.
 //  - 진급: 주 1회 배치, 3조건 AND(첫 평가 M추세 면제), 동의 탭, 강등 없음.
 //  - 금지어·낙인 원칙: 숫자·라벨·점수 UI 비노출. 게이트는 절대 완화하지 않는다.
@@ -44,14 +44,11 @@ export function moodToCondition(mood: Mood | number): string {
 }
 
 // ── 사후 P/M ────────────────────────────────────────────────
-// 0–10 슬라이더 → 내부 5구간. 0–2→1, 3–4→2, 5–6→3, 7–8→4, 9–10→5.
+// P/M 원값은 5점 척도(1~5). 과거 0–10 저장분 호환: 6 이상이면 구척도로 보고 5구간 매핑.
 export function pmTo5(v: number): number {
-  const x = Math.max(0, Math.min(10, Math.round(v)));
-  if (x <= 2) return 1;
-  if (x <= 4) return 2;
-  if (x <= 6) return 3;
-  if (x <= 8) return 4;
-  return 5;
+  const x = Math.round(v);
+  if (x > 5) return x <= 6 ? 3 : x <= 8 ? 4 : 5; // 구(0–10) 데이터 호환
+  return Math.max(1, Math.min(5, x));
 }
 
 // ── 토글(사전 난이도 선택) ──────────────────────────────────
@@ -355,8 +352,8 @@ export interface DaySlot {
   // 상태
   status: "proposed" | "accepted" | "completed" | "skipped";
   // 사후 평정(완료 시)
-  p?: number; // 0–10 원값
-  m?: number; // 0–10 원값
+  p?: number; // 1–5 (5점 탭)
+  m?: number; // 1–5 (5점 탭)
   memo?: string; // "기억하고 싶은 순간" (선택)
   skipReason?: string;
 }
