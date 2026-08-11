@@ -66,6 +66,13 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // 로컬 개발: 프론트(:PORT) → API(:5000) 프록시. Replit 밖 로컬 실행용.
+    proxy: {
+      "/api": {
+        target: process.env.API_PROXY_TARGET ?? "http://localhost:5000",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port,
