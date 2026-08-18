@@ -72,6 +72,12 @@ export interface UserState {
   interests: string[]; // 온보딩 수집 + 주 1회 갱신 카드
   interestAskedDay: number | null; // 마지막으로 관심사 카드를 보여준 dayCount
   interestBoostUntil: number | null; // 갱신 직후 3일 부스트 종료 dayCount
+  // 관심사 구체화 사다리: 카테고리 아래 구체 취향(장르·이름 등).
+  // source: asked(탭 선택) | typed(자유 입력, A3+) | inferred(추출 — 확인 카드 후 승격)
+  interestSpecifics: { category: string; label: string; source: 'asked' | 'typed' | 'inferred'; day: number }[];
+  // LLM 무한 생성 지원 — 신선도 가드용 최근 노출 미션 제목(롤링), 취향 few-shot용 P/M 고득점 제목
+  recentTitles: string[];
+  likedTitles: string[];
   // 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회). '해보고 싶어요'만 계획 후보에 반영.
   areaReadiness: AreaReadinessMap;
   readinessAskedDay: number | null; // 마지막으로 의향 문항을 보여준 dayCount
@@ -152,6 +158,9 @@ const defaultUser: UserState = {
   interests: [],
   interestAskedDay: null,
   interestBoostUntil: null,
+  interestSpecifics: [],
+  recentTitles: [],
+  likedTitles: [],
   areaReadiness: {},
   readinessAskedDay: null,
   autonomyLevel: 0,
@@ -355,6 +364,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // 오늘 완료된 직접 연/직접 만든 조각 → 자율성 신호 집계
       const doneToday = slots.filter((s) => s.status === 'completed');
+
+      // LLM 생성 지원 원장 갱신 — 신선도(최근 노출 제목, 롤링 60) + 취향 few-shot(P/M≥4, 20)
+      const recentTitles = [
+        ...prev.recentTitles,
+        ...slots.map((s) => s.title).filter((t) => !prev.recentTitles.includes(t)),
+      ].slice(-60);
+      const likedNew = doneToday
+        .filter((s) => (s.p ?? 0) >= 4 || (s.m ?? 0) >= 4)
+        .map((s) => s.title)
+        .filter((t) => !prev.likedTitles.includes(t));
+      const likedTitles = [...prev.likedTitles, ...likedNew].slice(-20);
       const autonomySignals: AutonomySignals = {
         ...prev.autonomySignals,
         exploreCompletions:
@@ -414,6 +434,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reflectSlotId: null,
         dayRecords,
         areaPM,
+        recentTitles,
+        likedTitles,
         currentBandLow: adj.bandLow,
         currentBandHigh: adj.bandHigh,
         missedStreak: adj.missedStreak,

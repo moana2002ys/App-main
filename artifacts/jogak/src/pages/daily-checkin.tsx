@@ -26,11 +26,34 @@ import {
   buildSelfSlot,
   pickDefaultSlot,
   slotVariantForToggle,
+  moodToCondition,
 } from "@/lib/ba";
 
 const INTERESTS = [
   "게임", "음악", "동물", "식물", "요리·먹는 것", "책·글", "스포츠", "그림·만들기",
 ];
+
+// 관심사 구체화 사다리(A2+): 카테고리 아래 심화 선택지.
+// ⚠️ 초안 — 선택지 구성·문구는 회의 검토 대상. A3+는 자유 입력도 열린다.
+const INTEREST_SUBOPTIONS: Record<string, string[]> = {
+  "게임": ["RPG·모험", "퍼즐·캐주얼", "시뮬레이션·경영", "대전·스포츠 게임"],
+  "음악": ["잔잔한 곡", "밴드·락", "아이돌·팝", "클래식·재즈"],
+  "동물": ["강아지", "고양이", "새·물고기", "야생동물 다큐"],
+  "식물": ["집에서 키우는 화분", "꽃", "나무·숲", "채소·허브 키우기"],
+  "요리·먹는 것": ["간단 요리", "베이킹·디저트", "맛집 구경", "세계 음식"],
+  "책·글": ["소설", "에세이·시", "웹소설·웹툰", "지식·교양"],
+  "스포츠": ["축구·야구", "농구·배구", "홈트·헬스", "e스포츠"],
+  "그림·만들기": ["드로잉·낙서", "디지털 그림", "공예·만들기", "사진"],
+};
+
+// /api/daily-plan 응답의 슬롯 문구 오버레이 형태
+interface LlmSlotText {
+  id: string;
+  title: string;
+  minutes: number;
+  reflectQ: string;
+  variants?: { light?: string; challenge?: string };
+}
 
 // 의향 문항에서 영역을 부를 때의 소망형 라벨(카테고리 어휘 비노출).
 const READINESS_AREA_LABEL: Record<Area, string> = {
@@ -82,6 +105,16 @@ export function DailyCheckin() {
   const needGateRecheck = !!user.gateRecheckPending;
   const needInterestCard =
     user.interestAskedDay === null || user.dayCount - user.interestAskedDay >= 7;
+  // 관심사 심화(A2+): 카테고리는 이미 있고 그 아래 구체 취향이 없거나 오래됐으면,
+  // 주 1회 카드 자리를 재질문 대신 심화 질문으로 쓴다(부담 총량 불변).
+  const deepenCategory = useMemo(() => {
+    if (!canOpenAreas) return null;
+    const cat = user.interests[0];
+    if (!cat || !INTEREST_SUBOPTIONS[cat]) return null;
+    const latest = [...user.interestSpecifics].reverse().find((s) => s.category === cat);
+    if (latest && user.dayCount - latest.day < 14) return null;
+    return cat;
+  }, [canOpenAreas, user.interests, user.interestSpecifics, user.dayCount]);
   // 의향 카드: 레벨 개방 + 주기 도래 + 물어볼 영역 존재 + 오늘 관심사 카드가 없을 때만.
   // 후보 선정은 부담도 랭킹(D): 문턱 낮고 부담 신호 작은 영역부터.
   const readinessArea = useMemo(
@@ -155,6 +188,45 @@ export function DailyCheckin() {
     setEdits({});
   }, [candidates]);
 
+  // LLM 무한 변주(/api/daily-plan): 스켈레톤(영역·레벨·카테고리)은 그대로 두고
+  // 문구만 서버에서 새로 받아 오버레이한다. 실패·지연 시 시드 문구 그대로(무중단).
+  const [llmPlan, setLlmPlan] = useState<Record<string, LlmSlotText>>({});
+  useEffect(() => {
+    setLlmPlan({});
+    if (candidates.length === 0 || mood === null || !user.stage) return;
+    let alive = true;
+    fetch("/api/daily-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        stage: user.stage,
+        condition: moodToCondition(mood),
+        mood,
+        forbidden: user.forbidden,
+        interests: user.interests,
+        interestSpecifics: user.interestSpecifics.map(({ category, label, source }) => ({
+          category, label, source,
+        })),
+        recentTitles: user.recentTitles,
+        likedTitles: user.likedTitles,
+        slots: candidates.map((s) => ({
+          id: s.id, kind: s.kind, area: s.area, level: s.level,
+          categoryId: s.categoryId, title: s.title, minutes: s.minutes, reflectQ: s.reflectQ,
+        })),
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { slots: LlmSlotText[]; source: string } | null) => {
+        if (!alive || !data || data.source !== "llm") return;
+        const map: Record<string, LlmSlotText> = {};
+        for (const s of data.slots) map[s.id] = s;
+        setLlmPlan(map);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [candidates]);
+
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -176,10 +248,22 @@ export function DailyCheckin() {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   };
 
-  // 강도 토글: 숫자만 바꾸지 않는다 — 같은 카테고리에서 그 강도에 맞는
-  // "진짜 다른 미션"으로 문구·분량까지 교체한다. 원래 강도로 돌아오면 원문 복원.
+  // 강도 토글: 숫자만 바꾸지 않는다 — 그 강도에 맞는 "진짜 다른 문구"로 교체한다.
+  // LLM 계획이 있으면 함께 생성된 강도 변형(같은 활동의 심화/완화)을 우선 쓰고,
+  // 없으면 같은 카테고리의 레벨 태그 시드로 교체(결정적 폴백). 원래 강도면 원문 복원.
   const handleIntensity = (slot: DaySlot, t: Toggle) => {
     if (!user.stage) return;
+    const llm = llmPlan[slot.id];
+    if (llm) {
+      const title =
+        t === "light"
+          ? llm.variants?.light ?? llm.title
+          : t === "challenge"
+            ? llm.variants?.challenge ?? llm.title
+            : llm.title;
+      patchEdit(slot.id, { toggle: t, title, minutes: llm.minutes, reflectQ: llm.reflectQ });
+      return;
+    }
     const otherTitles = candidates
       .filter((c) => c.id !== slot.id)
       .map((c) => edits[c.id]?.title ?? c.title);
@@ -201,6 +285,25 @@ export function DailyCheckin() {
       forbidden: better ? user.forbidden.filter((f) => f !== tag) : user.forbidden,
     });
     setStep(needInterestCard ? 'interest' : needReadinessCard ? 'readiness' : 'main');
+  };
+
+  // 관심사 심화(A2+): 선택지 탭 또는 자유 입력(A3+·typed). 건너뛰어도 무벌점.
+  const [specificInput, setSpecificInput] = useState("");
+  const handleInterestSpecific = (label: string | null, source: "asked" | "typed") => {
+    const category = user.interests[0];
+    if (label && category) {
+      updateUser({
+        interestAskedDay: user.dayCount,
+        interestBoostUntil: user.dayCount + 3,
+        interestSpecifics: [
+          ...user.interestSpecifics,
+          { category, label: label.trim(), source, day: user.dayCount },
+        ],
+      });
+    } else {
+      updateUser({ interestAskedDay: user.dayCount });
+    }
+    setStep(needReadinessCard ? "readiness" : "main");
   };
 
   // 주 1회 관심사 카드: 선택 시 관심사 풀 갱신 + 3일 부스트, 건너뛰기 가능.
@@ -264,14 +367,15 @@ export function DailyCheckin() {
     const finalSlots = candidates.map((s) => {
       if (!ids.includes(s.id)) return s;
       const e = useEdits ? (edits[s.id] ?? {}) : {};
+      // 화면에 보인 문구가 확정본: 수동 편집 > LLM 변주 > 시드 순.
+      const llm = llmPlan[s.id];
       return {
         ...s,
         toggle: e.toggle ?? s.toggle,
         timeOfDay: e.timeOfDay !== undefined ? e.timeOfDay : s.timeOfDay,
-        // 강도 토글로 문구가 바뀌었으면 확정본에도 반영(진짜 강도 변주).
-        title: e.title ?? s.title,
-        minutes: e.minutes ?? s.minutes,
-        reflectQ: e.reflectQ ?? s.reflectQ,
+        title: e.title ?? llm?.title ?? s.title,
+        minutes: e.minutes ?? llm?.minutes ?? s.minutes,
+        reflectQ: e.reflectQ ?? llm?.reflectQ ?? s.reflectQ,
         status: "accepted" as const,
       };
     });
@@ -400,30 +504,83 @@ export function DailyCheckin() {
               className="space-y-8 pt-6"
             >
               <div className="flex justify-center mb-6"><Character size="sm" /></div>
-              <div className="bg-[#FFFDF8] p-6 rounded-3xl shadow-sm border border-border/60 relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-primary/30"></div>
-                <p className="text-xs text-muted-foreground mb-3">이번 주 안부</p>
-                <p className="text-foreground text-lg leading-relaxed">요즘 빠져있는 게 있나요?</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {INTERESTS.map((i) => (
-                  <Button
-                    key={i}
-                    variant="outline"
-                    className={`justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 ${user.interests[0] === i ? 'border-primary/50 bg-primary/5' : ''}`}
-                    onClick={() => handleInterest(i)}
-                  >
-                    {i}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  className="col-span-2 justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 text-muted-foreground"
-                  onClick={() => handleInterest(null)}
-                >
-                  이번 주는 건너뛸게요
-                </Button>
-              </div>
+              {deepenCategory ? (
+                <>
+                  {/* 관심사 심화(A2+): 재질문 대신 한 층 깊게. ⚠️ 문구 초안 — 회의 검토 대상 */}
+                  <div className="bg-[#FFFDF8] p-6 rounded-3xl shadow-sm border border-border/60 relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1.5 bg-primary/30"></div>
+                    <p className="text-xs text-muted-foreground mb-3">이번 주 안부</p>
+                    <p className="text-foreground text-lg leading-relaxed">
+                      {deepenCategory}, 그중에서도 어떤 쪽이에요?
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {(INTEREST_SUBOPTIONS[deepenCategory] ?? []).map((o) => (
+                      <Button
+                        key={o}
+                        variant="outline"
+                        className="justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
+                        onClick={() => handleInterestSpecific(o, "asked")}
+                      >
+                        {o}
+                      </Button>
+                    ))}
+                    {canSelfPropose && (
+                      <div className="col-span-2 flex gap-2">
+                        <input
+                          value={specificInput}
+                          onChange={(ev) => setSpecificInput(ev.target.value)}
+                          placeholder="직접 적어도 돼요 (예: 좋아하는 밴드·게임 이름)"
+                          className="flex-1 rounded-2xl border border-border/50 bg-white px-4 py-3 text-sm focus:outline-none focus:border-primary/40"
+                          maxLength={20}
+                        />
+                        <Button
+                          variant="outline"
+                          className="rounded-2xl px-4"
+                          disabled={specificInput.trim().length < 2}
+                          onClick={() => handleInterestSpecific(specificInput, "typed")}
+                        >
+                          담기
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="col-span-2 justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 text-muted-foreground"
+                      onClick={() => handleInterestSpecific(null, "asked")}
+                    >
+                      이번 주는 건너뛸게요
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-[#FFFDF8] p-6 rounded-3xl shadow-sm border border-border/60 relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1.5 bg-primary/30"></div>
+                    <p className="text-xs text-muted-foreground mb-3">이번 주 안부</p>
+                    <p className="text-foreground text-lg leading-relaxed">요즘 빠져있는 게 있나요?</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {INTERESTS.map((i) => (
+                      <Button
+                        key={i}
+                        variant="outline"
+                        className={`justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 ${user.interests[0] === i ? 'border-primary/50 bg-primary/5' : ''}`}
+                        onClick={() => handleInterest(i)}
+                      >
+                        {i}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      className="col-span-2 justify-center text-center h-auto py-3 px-4 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 text-muted-foreground"
+                      onClick={() => handleInterest(null)}
+                    >
+                      이번 주는 건너뛸게요
+                    </Button>
+                  </div>
+                </>
+              )}
             </motion.div>
           ) : step === 'readiness' ? (
             <motion.div
@@ -532,8 +689,9 @@ export function DailyCheckin() {
                         const e = edits[slot.id] ?? {};
                         const timeOfDay = e.timeOfDay !== undefined ? e.timeOfDay : slot.timeOfDay;
                         const toggle = e.toggle ?? slot.toggle;
-                        const title = e.title ?? slot.title;
-                        const minutes = e.minutes ?? slot.minutes;
+                        const llm = llmPlan[slot.id];
+                        const title = e.title ?? llm?.title ?? slot.title;
+                        const minutes = e.minutes ?? llm?.minutes ?? slot.minutes;
                         return (
                           <div
                             key={slot.id}
