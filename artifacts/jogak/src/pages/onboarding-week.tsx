@@ -3,7 +3,7 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, LogOut } from "lucide-react";
 import {
   MOOD_OPTIONS,
   getOnboardingMission,
@@ -146,7 +146,7 @@ type Step = "journey" | "mood" | "mission" | "learn" | "survey" | "pm" | "intere
 // 온보딩 1주: 지정된 하루 1개 초소형 미션이라 '오늘 뭘 할까'가 아니라
 // '7일 여정 위 어디쯤인가'가 보여야 한다 → 타임라인이 기본 화면.
 export function OnboardingWeek() {
-  const { user, updateUser, setView, nextDay } = useAppStore();
+  const { user, updateUser, setView, nextDay, signOut } = useAppStore();
   const week = user.onboardingWeek ?? emptyOnboardingWeek();
   // Day는 실제 달력에서 나온다 — 가입일(startedAt)이 사람마다 다르므로
   // 같은 날 앱을 열어도 각자 다른 Day를 본다. week.dayIndex는 호환용으로만 남긴다.
@@ -253,10 +253,19 @@ export function OnboardingWeek() {
               exit={{ opacity: 0, y: -12 }}
               className="flex-1 flex flex-col"
             >
-              <div className="pt-4 pb-6 space-y-1.5">
-                <p className="text-xs text-muted-foreground">{formatKorean(today)}</p>
-                <h1 className="text-2xl font-semibold text-foreground">나의 시작 데이터 쌓기</h1>
-                <p className="text-sm text-muted-foreground">7일 동안 아주 작은 조각을 모아봐요</p>
+              <div className="pt-4 pb-6 flex items-start justify-between gap-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">{formatKorean(today)}</p>
+                  <h1 className="text-2xl font-semibold text-foreground">나의 시작 데이터 쌓기</h1>
+                  <p className="text-sm text-muted-foreground">7일 동안 아주 작은 조각을 모아봐요</p>
+                </div>
+                <button
+                  onClick={signOut}
+                  aria-label="로그아웃"
+                  className="mt-1 p-2 -mr-2 shrink-0 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
               </div>
 
               {/* 7일 타임라인 */}

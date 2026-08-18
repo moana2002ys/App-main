@@ -4,7 +4,7 @@ import { todayKey } from "@/lib/day";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, LogOut } from "lucide-react";
 import { getFirstLaunchItems, firstLaunchIntro } from "@/lib/survey";
 import { scoreGatingOnly, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
 import { emptyOnboardingWeek } from "@/lib/ba";
@@ -35,7 +35,7 @@ const INTRO_CARDS: { title: string; body: string; note?: string }[] = [
 
 // step 0~2: 설계철학 인트로 / 그 다음 N개: 설문 문항(JSON 단일 출처) / 마지막: 닉네임·캐릭터 색
 export function Onboarding() {
-  const { user, updateUser, setView } = useAppStore();
+  const { user, updateUser, setView, signOut } = useAppStore();
   // 첫 실행은 고립 여부를 가르는 은둔 체크(sc_q1·sc_q2)만.
   // 나머지 상황 체크리스트(ss1~ss15)는 온보딩 주간 Day2 미션으로 진행한다.
   const items = useMemo(
@@ -113,6 +113,14 @@ export function Onboarding() {
             />
           </div>
         )}
+        <div className="flex-1" />
+        <button
+          onClick={signOut}
+          aria-label="로그아웃"
+          className="p-2 -mr-2 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+        </button>
       </div>
       {/* justify-center 대신 자식 my-auto: 선택지가 길어 넘칠 때 위가 잘리지 않고 스크롤된다 */}
       <div className="flex-1 flex flex-col overflow-y-auto max-w-sm mx-auto w-full">

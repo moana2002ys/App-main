@@ -3,6 +3,7 @@ import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { LogOut } from "lucide-react";
 import { TASTER_MISSIONS, TasterMission, emptyOnboardingWeek } from "@/lib/ba";
 import { todayKey } from "@/lib/day";
 
@@ -97,7 +98,7 @@ const FELT_TAPS = [
 ];
 
 export function Taster() {
-  const { user, updateUser, setView } = useAppStore();
+  const { user, updateUser, setView, signOut } = useAppStore();
   const [step, setStep] = useState<Step>("intro");
   const [picked, setPicked] = useState<TasterMission | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
@@ -127,7 +128,16 @@ export function Taster() {
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
-      <div className="flex-1 flex flex-col max-w-sm mx-auto w-full p-6">
+      <div className="flex justify-end px-4 pt-3">
+        <button
+          onClick={signOut}
+          aria-label="로그아웃"
+          className="p-2 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 flex flex-col max-w-sm mx-auto w-full p-6 pt-0">
         <AnimatePresence mode="wait">
           {step === "intro" ? (
             <motion.div
