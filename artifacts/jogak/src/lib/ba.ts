@@ -10,6 +10,7 @@ import {
 } from "./classifier";
 import {
   selectAreaMissions,
+  reselectMissionAtLevel,
   defaultMinutesForLevel,
   type GeneratedMission,
 } from "@workspace/mission-bank";
@@ -191,7 +192,10 @@ export function buildSelfSlot(dayCount: number, index: number, title: string): D
 }
 
 // ── B. 기본값 선정기 — "미리 담을 1개"를 점수로 고른다 ──────
-// 신호: 그 영역의 P 이력(즐거움 연료), 낮은 난이도(성공확률), 타깃 우선.
+// 신호: 그 영역의 P 이력(즐거움 연료)과 M 이력(뿌듯함=유능감), 타깃 우선.
+// 난이도는 점수에 넣지 않는다 — "할 수 있는 난이도"는 밴드가 이미 정했고,
+// 쉬움 가점은 밴드 아래로 끌어내리는 이중 하향이 되기 때문(2026-08-18 팀 피드백).
+// 기분 무거운 날의 완화는 강도 토글 기본값(defaultToggle: 가볍게)이 담당한다.
 // 결정적·설명가능(이유 문구 반환) — 블랙박스 금지 원칙.
 export function pickDefaultSlot(
   candidates: DaySlot[],
@@ -207,19 +211,49 @@ export function pickDefaultSlot(
     if (s.kind === "target") score += 2; // 가치 연결 우선
     const pm = areaPM[s.area];
     if (pm && pm.pN > 0) score += (pm.pSum / pm.pN) / 5; // 그 영역의 평균 P(0~1)
-    score += (5 - s.level) * 0.3; // 쉬울수록 가점(성공확률)
-    if (mood <= 2) score += (5 - s.level) * 0.5; // 기분 무거운 날은 더 가볍게
+    if (pm && pm.mN > 0) score += (pm.mSum / pm.mN) / 5; // 그 영역의 평균 M(0~1)
     if (score > bestScore) { bestScore = score; best = s; }
   }
   const b = best ?? candidates[0]!;
   const pm = areaPM[b.area];
+  const avgP = pm && pm.pN > 0 ? pm.pSum / pm.pN : 0;
+  const avgM = pm && pm.mN > 0 ? pm.mSum / pm.mN : 0;
   const reason =
-    mood <= 2
-      ? "오늘은 마음이 무거운 날이라 가장 가벼운 걸 담았어요."
-      : pm && pm.pN > 0 && pm.pSum / pm.pN >= 3.5
+    avgM >= 3.5 && avgM >= avgP
+      ? "요즘 이런 조각에서 뿌듯함이 컸어서 담아봤어요."
+      : avgP >= 3.5
         ? "요즘 이런 조각에서 즐거움이 컸어서 담아봤어요."
-        : "오늘 방향과 이어지면서 부담이 적은 걸 담았어요.";
+        : mood <= 2
+          ? "오늘은 마음이 무거운 날이라, 강도는 가장 가볍게 잡아뒀어요."
+          : "오늘 방향과 이어지는 조각을 담았어요.";
   return { slot: b, reason };
+}
+
+// ── 강도 토글 = 진짜 강도 변주 ──────────────────────────────
+// 문제의식(2026-08-18 팀 피드백): 활동 문구에는 이미 난이도가 내재되어 있는데,
+// 토글이 숫자(level)만 바꾸면 "같은 미션에 라벨만 바뀐" 실효 없는 조정이 된다.
+// 해결: 토글 시 같은 카테고리(=미션의 핵심 포인트) 안에서 effectiveLevel에
+// 태그된 다른 시드로 문구·분량까지 교체한다. 한 활동 원칙·게이트는 그대로.
+// 맞는 다른 시드가 없으면 원래 문구 유지(억지 교체 금지).
+export function slotVariantForToggle(
+  slot: DaySlot,
+  toggle: Toggle,
+  stage: Stage,
+  avoidTitles: string[],
+  rotation: number,
+): { title: string; minutes: number; reflectQ: string } {
+  const original = { title: slot.title, minutes: slot.minutes, reflectQ: slot.reflectQ };
+  if (!slot.categoryId) return original;
+  // 문구는 slot.level에서 뽑혔으므로, 시도 레벨이 그와 달라질 때만 교체한다.
+  const eff = effectiveLevel(slot.level, toggle, stage, slot.area);
+  if (eff === slot.level) return original;
+  const m = reselectMissionAtLevel({
+    categoryId: slot.categoryId,
+    level: eff,
+    avoidTitles: [...avoidTitles, slot.title],
+    rotation,
+  });
+  return m ? { title: m.title, minutes: m.minutes, reflectQ: m.reflectQ } : original;
 }
 
 // ── G. 유지 모드(엔드포인트) — SDT: 자율적 조절의 안정화 ────
@@ -404,6 +438,8 @@ export interface DaySlot {
   title: string;
   minutes: number;
   reflectQ: string;
+  // 출신 카테고리 — 강도 토글 시 같은 카테고리에서 진짜 강도가 다른 문구로 재선택.
+  categoryId?: string;
   // 계획(사전) 입력
   toggle: Toggle;
   timeOfDay: TimeOfDay | null;
@@ -707,6 +743,7 @@ export function planTodaySlots(params: PlanSlotsParams): DaySlot[] {
       title: m.title,
       minutes: m.minutes,
       reflectQ: m.reflectQ,
+      categoryId: m.categoryId,
       toggle: toggleDefault,
       timeOfDay: null,
       status: "proposed",

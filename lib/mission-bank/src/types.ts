@@ -23,6 +23,10 @@ export interface SeedCategory {
   evidence: string[]; // 근거태그: BA, EXP, SE, EW, IPS, CIRC, KOR
   gate?: CategoryGate;
   seeds: string[]; // 변주용 씨앗(정답 아님)
+  // 시드별 기본 난이도(1~5), seeds와 인덱스 정렬. 없으면 레벨 무관 시드로 취급.
+  // 강도 토글(가볍게/보통/도전) 시 같은 카테고리 안에서 이 태그로
+  // "진짜 강도가 다른" 미션 문구를 찾는다(핵심 포인트=카테고리 유지).
+  seedLevels?: number[];
   variationHint?: string; // LLM 변주 힌트
   reflectQs: string[]; // 회고질문 후보
 }
@@ -33,4 +37,6 @@ export interface GeneratedMission {
   title: string;
   minutes: number;
   reflectQ: string;
+  // 출신 카테고리 id — 강도 토글 시 같은 카테고리 안에서 재선택하기 위해 보존.
+  categoryId?: string;
 }

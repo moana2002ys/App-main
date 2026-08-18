@@ -25,6 +25,7 @@ import {
   validateSelfProposal,
   buildSelfSlot,
   pickDefaultSlot,
+  slotVariantForToggle,
 } from "@/lib/ba";
 
 const INTERESTS = [
@@ -133,7 +134,19 @@ export function DailyCheckin() {
 
   // 선택 상태: 미리 담긴 기본값 = 첫 타깃 슬롯(없으면 첫 후보).
   const [selected, setSelected] = useState<string[]>([]);
-  const [edits, setEdits] = useState<Record<string, { timeOfDay?: TimeOfDay | null; toggle?: Toggle }>>({});
+  // 강도 토글은 문구·분량까지 함께 바뀐다(진짜 강도 변주) — title/minutes/reflectQ도 오버레이.
+  const [edits, setEdits] = useState<
+    Record<
+      string,
+      {
+        timeOfDay?: TimeOfDay | null;
+        toggle?: Toggle;
+        title?: string;
+        minutes?: number;
+        reflectQ?: string;
+      }
+    >
+  >({});
   useEffect(() => {
     if (candidates.length === 0) { setSelected([]); return; }
     const picked = pickDefaultSlot(candidates, user.areaPM, mood ?? 3);
@@ -150,8 +163,33 @@ export function DailyCheckin() {
     });
   };
 
-  const patchEdit = (id: string, patch: { timeOfDay?: TimeOfDay | null; toggle?: Toggle }) => {
+  const patchEdit = (
+    id: string,
+    patch: {
+      timeOfDay?: TimeOfDay | null;
+      toggle?: Toggle;
+      title?: string;
+      minutes?: number;
+      reflectQ?: string;
+    },
+  ) => {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  };
+
+  // 강도 토글: 숫자만 바꾸지 않는다 — 같은 카테고리에서 그 강도에 맞는
+  // "진짜 다른 미션"으로 문구·분량까지 교체한다. 원래 강도로 돌아오면 원문 복원.
+  const handleIntensity = (slot: DaySlot, t: Toggle) => {
+    if (!user.stage) return;
+    const otherTitles = candidates
+      .filter((c) => c.id !== slot.id)
+      .map((c) => edits[c.id]?.title ?? c.title);
+    const v = slotVariantForToggle(slot, t, user.stage, otherTitles, user.dayCount);
+    patchEdit(slot.id, {
+      toggle: t,
+      title: v.title,
+      minutes: v.minutes,
+      reflectQ: v.reflectQ,
+    });
   };
 
   // 게이트 재확인: "괜찮아졌어요" → 해당 금지 플래그 해제(단계·밴드 불변). 아니면 유지.
@@ -230,6 +268,10 @@ export function DailyCheckin() {
         ...s,
         toggle: e.toggle ?? s.toggle,
         timeOfDay: e.timeOfDay !== undefined ? e.timeOfDay : s.timeOfDay,
+        // 강도 토글로 문구가 바뀌었으면 확정본에도 반영(진짜 강도 변주).
+        title: e.title ?? s.title,
+        minutes: e.minutes ?? s.minutes,
+        reflectQ: e.reflectQ ?? s.reflectQ,
         status: "accepted" as const,
       };
     });
@@ -490,6 +532,8 @@ export function DailyCheckin() {
                         const e = edits[slot.id] ?? {};
                         const timeOfDay = e.timeOfDay !== undefined ? e.timeOfDay : slot.timeOfDay;
                         const toggle = e.toggle ?? slot.toggle;
+                        const title = e.title ?? slot.title;
+                        const minutes = e.minutes ?? slot.minutes;
                         return (
                           <div
                             key={slot.id}
@@ -503,11 +547,11 @@ export function DailyCheckin() {
                               aria-pressed={isSelected}
                               disabled={!canModifyPlan}
                             >
-                              <span className="text-2xl leading-none pt-0.5">{activityEmoji(slot.title, slot.area)}</span>
+                              <span className="text-2xl leading-none pt-0.5">{activityEmoji(title, slot.area)}</span>
                               <span className="flex-1 min-w-0">
-                                <span className="block text-sm font-medium text-foreground leading-snug">{slot.title}</span>
+                                <span className="block text-sm font-medium text-foreground leading-snug">{title}</span>
                                 <span className="block text-[11px] text-muted-foreground mt-1">
-                                  {SLOT_BADGE[slot.kind]} · 약 {slot.minutes}분
+                                  {SLOT_BADGE[slot.kind]} · 약 {minutes}분
                                 </span>
                               </span>
                               {canModifyPlan && (
@@ -547,7 +591,7 @@ export function DailyCheckin() {
                                   {(Object.keys(TOGGLE_LABEL) as Toggle[]).map((t) => (
                                     <button
                                       key={t}
-                                      onClick={() => patchEdit(slot.id, { toggle: t })}
+                                      onClick={() => handleIntensity(slot, t)}
                                       className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
                                         toggle === t
                                           ? "bg-primary/10 border-primary/60 text-primary font-medium"

@@ -212,9 +212,18 @@ export function enforceComposition(
       (c) => c.levels.min <= level && c.levels.max >= level,
     );
     // 레벨을 덮는 카테고리 우선, 없으면 전체 적격 카테고리까지 넓혀 찾는다.
+    // 카테고리 안에서는 요청 레벨에 가까운 태그의 시드부터 시도한다(강도 정합).
     for (const pool of cover.length > 0 ? [cover, eligible] : [eligible]) {
       for (const cat of pool) {
-        for (const seed of cat.seeds) {
+        const dist = (i: number) => {
+          const tagged = cat.seedLevels?.[i];
+          return tagged !== undefined ? Math.abs(tagged - level) : 0.75;
+        };
+        const idxs = cat.seeds
+          .map((_, i) => i)
+          .sort((a, b) => dist(a) - dist(b));
+        for (const i of idxs) {
+          const seed = cat.seeds[i]!;
           if (avoid.has(seed)) continue;
           if (hasParallelActivities(seed)) continue;
           if (!pred(seed)) continue;
@@ -234,6 +243,7 @@ export function enforceComposition(
       ...result[idx]!,
       title: found.seed,
       reflectQ: found.cat.reflectQs[0] ?? result[idx]!.reflectQ,
+      categoryId: found.cat.id,
     };
   };
 
@@ -313,6 +323,59 @@ export function enforceComposition(
 
 function pickByRotation<T>(arr: T[], offset: number): T {
   return arr[((offset % arr.length) + arr.length) % arr.length]!;
+}
+
+// 카테고리 안에서 목표 레벨에 가장 가까운 시드를 고른다(동률은 회전으로 변주).
+// 사용 불가(중복·병렬활동) 시드는 제외. 후보가 전혀 없으면 null.
+function pickSeedNearLevel(
+  cat: SeedCategory,
+  level: number,
+  interest: string | undefined,
+  rotation: number,
+  usedTitles: Set<string>,
+): string | null {
+  const cands: { text: string; dist: number }[] = [];
+  cat.seeds.forEach((raw, i) => {
+    const text = weaveInterest(raw, interest, cat.area);
+    if (usedTitles.has(text) || hasParallelActivities(text)) return;
+    const tagged = cat.seedLevels?.[i];
+    cands.push({
+      text,
+      dist: tagged !== undefined ? Math.abs(tagged - level) : 0.75,
+    });
+  });
+  if (cands.length === 0) return null;
+  const minDist = Math.min(...cands.map((c) => c.dist));
+  const best = cands.filter((c) => c.dist === minDist);
+  return pickByRotation(best, rotation).text;
+}
+
+// 강도 토글용: 같은 카테고리 안에서 요청 레벨(effectiveLevel)에 맞는 미션을 다시 뽑는다.
+// 핵심 포인트(카테고리)는 유지하고 강도만 진짜로 바꾼다 — 문구·분량까지 함께.
+// 게이트는 계획 시점에 이미 통과한 카테고리만 호출되므로 재검사하지 않는다.
+// 요청 레벨에 맞는 "다른" 시드가 없으면 null(호출부는 원래 문구 유지).
+export function reselectMissionAtLevel(params: {
+  categoryId: string;
+  level: number;
+  interest?: string;
+  avoidTitles?: string[];
+  rotation?: number;
+}): GeneratedMission | null {
+  const cat = CATEGORIES.find((c) => c.id === params.categoryId);
+  if (!cat) return null;
+  const level = clampLevel(params.level);
+  const rotation = params.rotation ?? 0;
+  const used = new Set(params.avoidTitles ?? []);
+  const seed = pickSeedNearLevel(cat, level, params.interest, rotation, used);
+  if (!seed) return null;
+  return {
+    area: cat.area,
+    level,
+    title: seed,
+    minutes: defaultMinutesForLevel(level),
+    reflectQ: pickByRotation(cat.reflectQs, rotation),
+    categoryId: cat.id,
+  };
 }
 
 // 밴드[lo..hi]를 count개의 난이도로 고르게 편다.
@@ -406,26 +469,18 @@ export function selectAreaMissions(params: {
         : pickByRotation(cats, rotation + idx);
     usedCategories.add(cat.id);
 
-    // 시드 선택: 회전 + 중복 회피
-    let seed = "";
-    for (let s = 0; s < cat.seeds.length; s++) {
-      const candidate = weaveInterest(
-        pickByRotation(cat.seeds, rotation + idx + s),
-        interest,
-        area,
-      );
-      if (!usedTitles.has(candidate) && !hasParallelActivities(candidate)) {
-        seed = candidate;
-        break;
-      }
-    }
-    if (!seed) {
-      const woven = cat.seeds.map((s) => weaveInterest(s, interest, area));
-      seed =
-        woven.find((s) => !usedTitles.has(s) && !hasParallelActivities(s)) ??
-        woven.find((s) => !hasParallelActivities(s)) ??
-        woven[0]!;
-    }
+    // 시드 선택: 목표 레벨에 가장 가까운 태그의 시드 우선(동률은 회전), 중복 회피.
+    // seedLevels가 없는 시드는 거리 0.75로 취급(태그된 근접 시드가 있으면 그쪽 우선).
+    const seed =
+      pickSeedNearLevel(cat, level, interest, rotation + idx, usedTitles) ??
+      (() => {
+        const woven = cat.seeds.map((s) => weaveInterest(s, interest, area));
+        return (
+          woven.find((s) => !usedTitles.has(s) && !hasParallelActivities(s)) ??
+          woven.find((s) => !hasParallelActivities(s)) ??
+          woven[0]!
+        );
+      })();
     usedTitles.add(seed);
 
     missions.push({
@@ -434,6 +489,7 @@ export function selectAreaMissions(params: {
       title: seed,
       minutes: defaultMinutesForLevel(level),
       reflectQ: pickByRotation(cat.reflectQs, rotation + idx),
+      categoryId: cat.id,
     });
   });
 
@@ -589,6 +645,7 @@ export function repairMission(
           title: candidate,
           minutes: mission.minutes || defaultMinutesForLevel(level),
           reflectQ: mission.reflectQ || cat.reflectQs[0]!,
+          categoryId: cat.id,
         };
       }
     }
