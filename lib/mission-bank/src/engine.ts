@@ -191,6 +191,8 @@ export function enforceComposition(
     forbidden: string[];
     condition: string;
     interest?: string;
+    // 오늘 이미 다른 슬롯이 쓴 제목들 — 교체 시드가 이들과 겹치면 안 된다.
+    avoidTitles?: Set<string>;
   },
 ): GeneratedMission[] {
   const { interest } = params;
@@ -199,7 +201,10 @@ export function enforceComposition(
     !interest.includes("모르") &&
     !!INTEREST_TOKEN_PATTERNS[interest];
   const result = missions.map((m) => ({ ...m }));
-  const avoid = new Set(result.map((m) => m.title));
+  const avoid = new Set([
+    ...(params.avoidTitles ?? []),
+    ...result.map((m) => m.title),
+  ]);
   const eligible = getEligibleCategories(params);
 
   const isInterest = (t: string) => hasInterest && reflectsInterest(t, interest);
@@ -495,14 +500,18 @@ export function selectAreaMissions(params: {
 
   missions.sort((a, b) => a.level - b.level);
   // 구성 규칙(취향 2+일반 1, 사진 인증 가능 1+)을 폴백에도 동일 적용.
-  return enforceComposition(missions, {
+  // 전역 중복 방지: 교체 시드도 오늘 쓴 제목을 피하고, 최종 제목을 전역 세트에 반영.
+  const final = enforceComposition(missions, {
     area,
     bandLow: lo,
     bandHigh: hi,
     forbidden,
     condition,
     interest,
+    avoidTitles: usedTitles,
   });
+  final.forEach((m) => usedTitles.add(m.title));
+  return final;
 }
 
 // 폴백 미션 생성: LLM 실패/지연 시 같은 원리(카테고리 뼈대 × 변주)로 3개 생성.
