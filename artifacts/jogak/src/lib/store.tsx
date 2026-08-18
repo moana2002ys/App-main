@@ -17,6 +17,10 @@ import {
   accumulateAreaPM,
   emptyAutonomySignals,
   evaluateAutonomyLevel,
+  evaluateMaintenance,
+  shouldReactivate,
+  MAINTENANCE_ENTER_MESSAGE,
+  MAINTENANCE_EXIT_MESSAGE,
 } from "./ba";
 
 export type ViewState =
@@ -75,6 +79,7 @@ export interface UserState {
   autonomyLevel: AutonomyLevel;
   autonomySignals: AutonomySignals;
   autonomyCheckDay: number | null; // 마지막 주간 판정 dayCount
+  maintenanceMode: boolean; // 유지 모드(엔드포인트 G) — 악화 신호 시 자동 복귀
   areaPM: AreaPMMap; // 영역별 P/M 누적(즐거움 슬롯 가중치 + 마이페이지)
   skipLog: SkipEntry[]; // 명시적 skip 원장
   dayRecords: DayRecord[]; // 하루 요약 원장(그래프·진급 배치)
@@ -152,6 +157,7 @@ const defaultUser: UserState = {
   autonomyLevel: 0,
   autonomySignals: emptyAutonomySignals(),
   autonomyCheckDay: null,
+  maintenanceMode: false,
   areaPM: {},
   skipLog: [],
   dayRecords: [],
@@ -368,11 +374,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const sinceAutonomyCheck = autonomyCheckDay === null
         ? newDay - cycleStart
         : newDay - autonomyCheckDay;
+      let maintenanceMode = prev.maintenanceMode;
       if (sinceAutonomyCheck >= 7) {
         autonomyCheckDay = newDay;
         const evaled = evaluateAutonomyLevel(autonomyLevel, autonomySignals, dayRecords, newDay);
         autonomyLevel = evaled.level;
         autonomyMessage = evaled.message;
+        // G. 유지 모드 진입: A4 안정 시 제안이 아니라 조각이의 인사로 전환
+        if (!maintenanceMode && evaluateMaintenance(autonomyLevel, autonomySignals, dayRecords, newDay)) {
+          maintenanceMode = true;
+          autonomyMessage = MAINTENANCE_ENTER_MESSAGE;
+        }
+      }
+      // G. 재활성: 기분 급락 지속·연속 미완료 → 동반 복원(실패 프레이밍 없음)
+      if (maintenanceMode && shouldReactivate(dayRecords, newDay, adj.missedStreak)) {
+        maintenanceMode = false;
+        autonomyMessage = MAINTENANCE_EXIT_MESSAGE;
       }
 
       // (구) 단계 진급 배치는 폐지 — promotionOffer는 더 이상 켜지지 않는다.
@@ -409,6 +426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         autonomySignals,
         autonomyLevel,
         autonomyCheckDay,
+        maintenanceMode,
         promotionOffer,
         lastPromotionCheckDay,
         promotionEvaluated,

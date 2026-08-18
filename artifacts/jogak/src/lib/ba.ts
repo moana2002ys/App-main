@@ -190,6 +190,66 @@ export function buildSelfSlot(dayCount: number, index: number, title: string): D
   };
 }
 
+// ── B. 기본값 선정기 — "미리 담을 1개"를 점수로 고른다 ──────
+// 신호: 그 영역의 P 이력(즐거움 연료), 낮은 난이도(성공확률), 타깃 우선.
+// 결정적·설명가능(이유 문구 반환) — 블랙박스 금지 원칙.
+export function pickDefaultSlot(
+  candidates: DaySlot[],
+  areaPM: AreaPMMap,
+  mood: number,
+): { slot: DaySlot | null; reason: string } {
+  if (candidates.length === 0) return { slot: null, reason: "" };
+  let best: DaySlot | null = null;
+  let bestScore = -Infinity;
+  for (const s of candidates) {
+    if (s.kind === "avoidance") continue; // 회피 조각은 기본값으로 안 담는다(선택은 가능)
+    let score = 0;
+    if (s.kind === "target") score += 2; // 가치 연결 우선
+    const pm = areaPM[s.area];
+    if (pm && pm.pN > 0) score += (pm.pSum / pm.pN) / 5; // 그 영역의 평균 P(0~1)
+    score += (5 - s.level) * 0.3; // 쉬울수록 가점(성공확률)
+    if (mood <= 2) score += (5 - s.level) * 0.5; // 기분 무거운 날은 더 가볍게
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  const b = best ?? candidates[0]!;
+  const pm = areaPM[b.area];
+  const reason =
+    mood <= 2
+      ? "오늘은 마음이 무거운 날이라 가장 가벼운 걸 담았어요."
+      : pm && pm.pN > 0 && pm.pSum / pm.pN >= 3.5
+        ? "요즘 이런 조각에서 즐거움이 컸어서 담아봤어요."
+        : "오늘 방향과 이어지면서 부담이 적은 걸 담았어요.";
+  return { slot: b, reason };
+}
+
+// ── G. 유지 모드(엔드포인트) — SDT: 자율적 조절의 안정화 ────
+// 진입: A4 + 최근 2주 완료 안정 + 자기 조각 완료 누적. 임계값은 자의적 초기값.
+// 재활성(복귀): 기분 급락 지속 또는 연속 미완료 — 실패 프레이밍 없이 동반 복원.
+export const MAINTENANCE_ENTER_MESSAGE =
+  "요즘은 조각이 없어도 하루를 스스로 그려가고 있어요. 조각이는 한 걸음 뒤에서 응원할게요. 언제든 다시 부르면 돼요.";
+export const MAINTENANCE_EXIT_MESSAGE =
+  "요즘 조금 무거웠죠. 다시 곁에서 같이 맞춰갈게요. 아주 작은 것부터요.";
+
+export function evaluateMaintenance(
+  level: AutonomyLevel,
+  signals: AutonomySignals,
+  records: DayRecord[],
+  today: number,
+): boolean {
+  if (level < 4) return false;
+  const win = records.filter((r) => today - r.day <= 14 && r.day < today);
+  const completedDays = win.filter(
+    (r) => r.completedTarget + r.completedPleasure + r.completedAvoidance > 0,
+  ).length;
+  return completedDays >= 8 && signals.selfCompletions >= 3;
+}
+
+export function shouldReactivate(records: DayRecord[], today: number, missedStreak: number): boolean {
+  if (missedStreak >= 3) return true;
+  const recent = records.filter((r) => today - r.day <= 3 && r.mood !== null);
+  return recent.length >= 2 && recent.every((r) => (r.mood ?? 3) <= 2);
+}
+
 // ── 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회 회전) ──
 // 원칙: 묻는 것 자체가 개입(MI 준비도 룰러). 답이 무엇이든 평가·재촉 없음.
 // '해보고 싶어요'일 때만 그 영역의 L1 조각이 오늘 계획 후보에 추가된다(explore).

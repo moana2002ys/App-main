@@ -24,6 +24,7 @@ import {
   ReadinessAnswer,
   validateSelfProposal,
   buildSelfSlot,
+  pickDefaultSlot,
 } from "@/lib/ba";
 
 const INTERESTS = [
@@ -135,7 +136,8 @@ export function DailyCheckin() {
   const [edits, setEdits] = useState<Record<string, { timeOfDay?: TimeOfDay | null; toggle?: Toggle }>>({});
   useEffect(() => {
     if (candidates.length === 0) { setSelected([]); return; }
-    const def = candidates.find((s) => s.kind === "target") ?? candidates[0]!;
+    const picked = pickDefaultSlot(candidates, user.areaPM, mood ?? 3);
+    const def = picked.slot ?? candidates[0]!;
     setSelected([def.id]);
     setEdits({});
   }, [candidates]);
@@ -248,7 +250,8 @@ export function DailyCheckin() {
     setView("home");
   };
 
-  const defaultSlot = candidates.find((s) => s.kind === "target") ?? candidates[0] ?? null;
+  const defaultSlot = pickDefaultSlot(candidates, user.areaPM, mood ?? 3).slot ?? candidates[0] ?? null;
+  const defaultReason = pickDefaultSlot(candidates, user.areaPM, mood ?? 3).reason;
 
   if (!opened) {
     return (
@@ -478,9 +481,7 @@ export function DailyCheckin() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground -mt-2">
-                      {canModifyPlan
-                        ? "이대로도 충분해요. 원하면 바꾸거나 더 담아도 돼요."
-                        : "오늘은 이거 하나면 충분해요."}
+                      {defaultReason} {canModifyPlan ? "원하면 바꾸거나 더 담아도 돼요." : "이거 하나면 충분해요."}
                     </p>
 
                     <div className="space-y-2.5">
