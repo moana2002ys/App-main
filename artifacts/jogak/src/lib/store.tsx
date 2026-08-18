@@ -75,9 +75,10 @@ export interface UserState {
   // 관심사 구체화 사다리: 카테고리 아래 구체 취향(장르·이름 등).
   // source: asked(탭 선택) | typed(자유 입력, A3+) | inferred(추출 — 확인 카드 후 승격)
   interestSpecifics: { category: string; label: string; source: 'asked' | 'typed' | 'inferred'; day: number }[];
-  // LLM 무한 생성 지원 — 신선도 가드용 최근 노출 미션 제목(롤링), 취향 few-shot용 P/M 고득점 제목
+  // LLM 무한 생성 지원 — 신선도 가드용 최근 노출 미션 제목(롤링)
   recentTitles: string[];
-  likedTitles: string[];
+  // 개인 시드뱅크: P/M을 높게 준 완료 미션. LLM few-shot + 폴백 재등장(3일 주기) 양쪽에 쓴다.
+  likedMissions: { title: string; area: Area; level: number }[];
   // 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회). '해보고 싶어요'만 계획 후보에 반영.
   areaReadiness: AreaReadinessMap;
   readinessAskedDay: number | null; // 마지막으로 의향 문항을 보여준 dayCount
@@ -160,7 +161,7 @@ const defaultUser: UserState = {
   interestBoostUntil: null,
   interestSpecifics: [],
   recentTitles: [],
-  likedTitles: [],
+  likedMissions: [],
   areaReadiness: {},
   readinessAskedDay: null,
   autonomyLevel: 0,
@@ -372,9 +373,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ].slice(-60);
       const likedNew = doneToday
         .filter((s) => (s.p ?? 0) >= 4 || (s.m ?? 0) >= 4)
-        .map((s) => s.title)
-        .filter((t) => !prev.likedTitles.includes(t));
-      const likedTitles = [...prev.likedTitles, ...likedNew].slice(-20);
+        .filter((s) => !prev.likedMissions.some((m) => m.title === s.title))
+        .map((s) => ({ title: s.title, area: s.area, level: s.level }));
+      const likedMissions = [...prev.likedMissions, ...likedNew].slice(-20);
       const autonomySignals: AutonomySignals = {
         ...prev.autonomySignals,
         exploreCompletions:
@@ -435,7 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dayRecords,
         areaPM,
         recentTitles,
-        likedTitles,
+        likedMissions,
         currentBandLow: adj.bandLow,
         currentBandHigh: adj.bandHigh,
         missedStreak: adj.missedStreak,

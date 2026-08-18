@@ -162,6 +162,7 @@ export function DailyCheckin() {
       pleasureBoostArea: user.pleasureBoostArea,
       readinessOpenAreas: readinessOpenAreas(user.areaReadiness),
       autonomyLevel: user.autonomyLevel,
+      likedMissions: user.likedMissions,
     });
   }, [mood, user.stage, user.phase, user.forbidden, user.areaReadiness]);
 
@@ -209,8 +210,10 @@ export function DailyCheckin() {
           category, label, source,
         })),
         recentTitles: user.recentTitles,
-        likedTitles: user.likedTitles,
-        slots: candidates.map((s) => ({
+        likedTitles: user.likedMissions.map((m) => m.title),
+        dayCount: user.dayCount,
+        // 재등장 조각(resurfaced)은 LLM 변주 대상에서 제외 — 그 미션 그대로가 의미.
+        slots: candidates.filter((s) => !s.resurfaced).map((s) => ({
           id: s.id, kind: s.kind, area: s.area, level: s.level,
           categoryId: s.categoryId, title: s.title, minutes: s.minutes, reflectQ: s.reflectQ,
         })),

@@ -445,6 +445,8 @@ export interface DaySlot {
   timeOfDay: TimeOfDay | null;
   place?: string; // 고립위험군+ "어디서"
   withWhom?: string; // 비위험군+ "누구와"
+  // 개인 시드뱅크에서 재등장한 조각 — LLM 문구 변주 대상에서 제외(그 미션 그대로가 의미).
+  resurfaced?: boolean;
   // 상태
   status: "proposed" | "accepted" | "completed" | "skipped";
   // 사후 평정(완료 시)
@@ -719,6 +721,8 @@ export interface PlanSlotsParams {
   // 자율성 레벨에 따른 하루 제안 개수: A0 = 1~3개, A1+ = 3~5개.
   // 5개 구성 = 타깃2 + 즐거움1 + 회피1 + 직접 연 조각(explore)1.
   autonomyLevel?: number;
+  // 개인 시드뱅크: P/M 높게 준 완료 미션 — 3일에 한 번 즐거움 슬롯으로 재등장.
+  likedMissions?: { title: string; area: Area; level: number }[];
 }
 
 // 첫 주 3슬롯(타깃2+즐거움1), 2주차부터 회피 슬롯 추가.
@@ -768,22 +772,45 @@ export function planTodaySlots(params: PlanSlotsParams): DaySlot[] {
   });
   for (const m of targetMissions.slice(0, 2)) push("target", m);
 
-  // 3 즐거움: P 누적 상위 영역, 없으면 관심사 폴백(타깃 영역에서 취향 변주).
-  const pArea = topPleasureArea(areaPM, stage, forbidden, params.pleasureBoostArea) ?? targetArea;
-  const cappedP = capBandForArea(stage, pArea, params.bandLow, params.bandHigh);
-  const pleasureMissions = selectAreaMissions({
-    area: pArea,
-    bandLow: Math.max(1, cappedP.low - (mood <= 2 ? 1 : 0)),
-    bandHigh: cappedP.low, // 즐거움은 부담 낮게: 밴드 하단 사용
-    forbidden,
-    condition,
-    interest: interests[0],
-    rotation: rotation + 3,
-    count: 1,
-    avoidTitles: usedTitles,
-    usedCategories,
-  });
-  if (pleasureMissions[0]) push("pleasure", pleasureMissions[0]);
+  // 3 즐거움: 개인 시드뱅크 재등장(3일 주기) > P 누적 상위 영역 > 관심사 폴백.
+  // 재등장 = P/M 높게 준 미션을 그대로 다시 초대 — 검증된 즐거움은 반복이 아니라 자산.
+  // 3일 간격은 질림 방지용 자의적 초기값(파일럿 보정 대상). 게이트는 그대로 재확인.
+  const liked = (params.likedMissions ?? []).filter(
+    (m) => !usedTitles.has(m.title) && isAreaEligible(m.area, forbidden),
+  );
+  if (liked.length > 0 && dayCount % 3 === 0) {
+    const pick = liked[dayCount % liked.length]!;
+    usedTitles.add(pick.title);
+    slots.push({
+      id: `${dayCount}-${slots.length}`,
+      kind: "pleasure",
+      area: pick.area,
+      level: Math.max(1, Math.min(pick.level, params.bandHigh)),
+      title: pick.title,
+      minutes: defaultMinutesForLevel(pick.level),
+      reflectQ: "다시 만난 조각, 이번엔 어땠어요?",
+      resurfaced: true,
+      toggle: toggleDefault,
+      timeOfDay: null,
+      status: "proposed",
+    });
+  } else {
+    const pArea = topPleasureArea(areaPM, stage, forbidden, params.pleasureBoostArea) ?? targetArea;
+    const cappedP = capBandForArea(stage, pArea, params.bandLow, params.bandHigh);
+    const pleasureMissions = selectAreaMissions({
+      area: pArea,
+      bandLow: Math.max(1, cappedP.low - (mood <= 2 ? 1 : 0)),
+      bandHigh: cappedP.low, // 즐거움은 부담 낮게: 밴드 하단 사용
+      forbidden,
+      condition,
+      interest: interests[0],
+      rotation: rotation + 3,
+      count: 1,
+      avoidTitles: usedTitles,
+      usedCategories,
+    });
+    if (pleasureMissions[0]) push("pleasure", pleasureMissions[0]);
+  }
 
   // 4 회피: 2주차부터(또는 조기 활성화). 반복 skip 영역의 더 작은 버전(더 낮은 밴드).
   const weekIndex = Math.floor((dayCount - params.cycleStartDay) / 7); // 0 = 첫 주

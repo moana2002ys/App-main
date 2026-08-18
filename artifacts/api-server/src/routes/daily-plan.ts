@@ -63,8 +63,19 @@ const DailyPlanBody = z.object({
   recentTitles: z.array(z.string()).max(200).default([]),
   // 취향 few-shot: P/M을 높게 준 완료 미션 제목들.
   likedTitles: z.array(z.string()).max(20).default([]),
+  // 변주 축 회전의 기준 날짜 — 같은 날은 같은 형식 지시(결정성).
+  dayCount: z.number().int().min(0).default(0),
   slots: z.array(SlotSchema).min(1).max(8),
 });
+
+// 변주 축 B(형식) — 날짜×슬롯 회전으로 코드가 지시한다. LLM 재량에 맡기면
+// 비슷한 형식이 반복되므로, 무한성의 절반은 이 회전에서 나온다.
+// TODO(2단계 완성): (카테고리×형식) 사용 이력 저장·회피는 DB 이벤트 테이블과 함께.
+const FORMATS = [
+  "기록형(적기·고르기·표시하기)",
+  "탐색형(찾아보기·구경하기·들어보기)",
+  "행동형(몸을 움직여 직접 하기)",
+];
 
 // 결정적 금지어(무비용·안전 원칙) — 프롬프트와 별개로 코드가 최종 차단.
 const BANNED = /구매|결제|주문|유료|술|담배|밤새|자해|다이어트/;
@@ -166,8 +177,10 @@ router.post("/daily-plan", async (req, res) => {
       const catLine = cat
         ? `카테고리: ${cat.name} (변주 힌트: ${cat.variationHint ?? "형식·시간대·소재 변주"}) / 씨앗 예시(복붙 금지): ${cat.seeds.slice(0, 2).join(" · ")}`
         : "카테고리: 자유(영역 안에서)";
+      const format = FORMATS[(body.dayCount + i) % FORMATS.length]!;
       return `[슬롯 ${i}] 역할: ${KIND_INTENT[s.kind] ?? s.kind} / 영역: ${AREA_KO[s.area]} / 난이도: L${s.level}
 ${catLine}
+오늘의 변주 형식: ${format} — 되도록 이 형식으로 만든다(난이도와 충돌하면 난이도 우선).
 현재 시드 문구(이보다 새롭게): ${s.title}`;
     })
     .join("\n\n");
