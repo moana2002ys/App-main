@@ -26,7 +26,7 @@ export function RecoveryReport() {
   } else if (totalSteps >= 8) {
     levelBadge = "A2 단계";
     levelName = "A2: 보폭 확장 & 영역 탐색 단계";
-    levelDesc = "방 안에서 현관, 집 앞, 동네로 활동 영역을 적극적으로 넓혀가는 단계입니다.";
+    levelDesc = "방 안에서 집 안(거실), 집 전체(My Home), 동네로 활동 영역을 따뜻하게 넓혀가는 단계입니다.";
   } else if (totalSteps >= 4) {
     levelBadge = "A1 단계";
     levelName = "A1: 첫걸음 선택 단계";

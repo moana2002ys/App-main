@@ -23,8 +23,8 @@ export const AREA_LABELS: Record<Area, string> = {
 
 export const ALL_AREAS: Area[] = [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social];
 
-// 방 안 → 방 밖 → 현관·창밖 → 동네
-export const BACKGROUND_STAGES = ["방 안", "방 밖", "현관·창밖", "동네"] as const;
+// 방 안 → 집 안 (거실) → 집 전체 (My Home) → 동네
+export const BACKGROUND_STAGES = ["방 안", "집 안 (거실)", "집 전체 (My Home)", "동네"] as const;
 
 export interface ItemMeta {
   id: string;
