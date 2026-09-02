@@ -6,9 +6,11 @@ import { ChevronLeft, Camera, Check } from "lucide-react";
 import { applyCompletion, EarnedReward } from "@/lib/rewards";
 import { Character } from "@/components/Character";
 import { BadgeIcon } from "@/components/BadgeIcon";
-import { microFeedback, SKIP_REASONS } from "@/lib/ba";
 import { useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { fileToDataUrl } from "@/lib/image";
+import { RewardClaimModal } from "@/components/RewardClaimModal";
+import { FurnitureItem } from "@/lib/decor";
+import { Mascot } from "@/components/Mascot";
 
 // 사후 평정 v3: 한 페이지 스크롤 — P·M 슬라이더 카드 + 메모(선택) + 사진 인증(선택).
 // '미조작'이면 내부 3으로 저장(중앙값 편향 방지). 밴드 조정은 다음 날 아침에.
@@ -77,6 +79,7 @@ export function Reflection() {
   const [mTouched, setMTouched] = useState(false);
   const [memo, setMemo] = useState("");
   const [earned, setEarned] = useState<EarnedReward[]>([]);
+  const [earnedFurniture, setEarnedFurniture] = useState<FurnitureItem | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [skipMode, setSkipMode] = useState(false);
   const [photoAttached, setPhotoAttached] = useState(false);
@@ -161,7 +164,9 @@ export function Reflection() {
       pendingPraise: undefined,
     });
 
-    if (reward.earned.length > 0) {
+    if (reward.earnedFurnitureItem) {
+      setEarnedFurniture(reward.earnedFurnitureItem);
+    } else if (reward.earned.length > 0) {
       setEarned(reward.earned);
       setCelebrating(true);
     } else {
@@ -295,8 +300,8 @@ export function Reflection() {
             >
               {/* 헤더 */}
               <div className="text-center space-y-3 pt-2">
-                <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-3xl">😊</span>
+                <div className="flex justify-center">
+                  <Mascot state="happy" size="medium" speechBubble="오늘 조각을 완수했어요!" />
                 </div>
                 <h1 className="text-2xl font-semibold text-foreground">작은 조각을 맞췄어요!</h1>
                 <div className="flex justify-center">
@@ -395,6 +400,15 @@ export function Reflection() {
           )}
         </AnimatePresence>
       </div>
+
+      {earnedFurniture && (
+        <RewardClaimModal
+          item={earnedFurniture}
+          challengeTitle={slot.title}
+          onPlaceNow={() => setView("deco_room")}
+          onClose={() => setView("home")}
+        />
+      )}
     </div>
   );
 }

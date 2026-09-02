@@ -15,6 +15,7 @@ import { Reflection } from "@/pages/reflection";
 import { Growth } from "@/pages/growth";
 import { DecoCharacter } from "@/pages/deco-character";
 import { DecoRoom } from "@/pages/deco-room";
+import { RecoveryReport } from "@/pages/recovery-report";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function MainFlow() {
       {view === 'growth' && <Growth />}
       {view === 'deco_character' && <DecoCharacter />}
       {view === 'deco_room' && <DecoRoom />}
+      {view === 'recovery_report' && <RecoveryReport />}
     </PhoneFrame>
   );
 }

@@ -85,3 +85,19 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Crisp Pixel Art Rendering Utility Classes */
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  image-rendering: -moz-crisp-edges;
+}
+
+.pixel-art canvas,
+.pixel-art svg,
+.pixel-art img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  shape-rendering: crispEdges;
+}
+

@@ -30,7 +30,8 @@ export type ViewState =
   | 'reflection'
   | 'growth'
   | 'deco_character'
-  | 'deco_room';
+  | 'deco_room'
+  | 'recovery_report';
 
 // 데일리 설문 v2: 기분 5단계 + 활동 선택(2문항). 관심사는 주 1회 카드.
 export interface DailyAnswersV2 {
