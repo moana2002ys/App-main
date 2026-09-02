@@ -281,7 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setView('auth');
   }, []);
 
-  // 앱 시작 시 세션 복원
+  // 앱 시작 시 세션 복원 (로컬 미니 오프라인 데모 모드 포함)
   useEffect(() => {
     let cancelled = false;
     getMe()
@@ -289,7 +289,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled) enterFromServer(me.email, me.state);
       })
       .catch(() => {
-        if (!cancelled) setView('auth');
+        if (!cancelled) {
+          setUser({ ...defaultUser, email: 'guest@stepbystep.local' });
+          setView('home');
+        }
       });
     return () => { cancelled = true; };
   }, [enterFromServer]);
