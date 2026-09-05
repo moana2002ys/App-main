@@ -20,7 +20,7 @@ import {
 //  - 슬롯: 타깃 2 + 즐거움 1 + 회피 1 (본 사이클 첫 주는 3슬롯)
 //  - 난이도 합성 = B안(계획 우선형): clamp(밴드 + 토글). 기분은 계산 불개입,
 //    기분 ≤2일 때 토글 '기본값'만 가볍게로 추천.
-//  - 사후 P/M 0–10 슬라이더(완료만), 미조작 시 내부 3.
+//  - 사후 P/M 5점 탭(완료만), 미조작 시 내부 3. (2026-08-11 팀 결정: 0–10 슬라이더 → 5점)
 //  - adjustBandNextDayV2: day_result 3분기, 완료→하향 없음.
 //  - 진급: 주 1회 배치, 3조건 AND(첫 평가 M추세 면제), 동의 탭, 강등 없음.
 //  - 금지어·낙인 원칙: 숫자·라벨·점수 UI 비노출. 게이트는 절대 완화하지 않는다.
@@ -44,14 +44,11 @@ export function moodToCondition(mood: Mood | number): string {
 }
 
 // ── 사후 P/M ────────────────────────────────────────────────
-// 0–10 슬라이더 → 내부 5구간. 0–2→1, 3–4→2, 5–6→3, 7–8→4, 9–10→5.
+// P/M 원값은 5점 척도(1~5). 과거 0–10 저장분 호환: 6 이상이면 구척도로 보고 5구간 매핑.
 export function pmTo5(v: number): number {
-  const x = Math.max(0, Math.min(10, Math.round(v)));
-  if (x <= 2) return 1;
-  if (x <= 4) return 2;
-  if (x <= 6) return 3;
-  if (x <= 8) return 4;
-  return 5;
+  const x = Math.round(v);
+  if (x > 5) return x <= 6 ? 3 : x <= 8 ? 4 : 5; // 구(0–10) 데이터 호환
+  return Math.max(1, Math.min(5, x));
 }
 
 // ── 토글(사전 난이도 선택) ──────────────────────────────────
@@ -89,12 +86,14 @@ export function effectiveLevel(
 }
 
 // ── 슬롯 ────────────────────────────────────────────────────
-export type SlotKind = "target" | "pleasure" | "avoidance";
+export type SlotKind = "target" | "pleasure" | "avoidance" | "explore" | "self";
 
 export const SLOT_BADGE: Record<SlotKind, string> = {
   target: "내가 고른 영역",
   pleasure: "즐거움 활동",
   avoidance: "조금 어려워했던 활동",
+  explore: "직접 열어본 조각",
+  self: "내가 만든 조각",
 };
 
 // 왜 이 조각을 추천했는지(BA 근거) — 낙인 언어 없이 이유만.
@@ -102,7 +101,178 @@ export const SLOT_REASON: Record<SlotKind, string> = {
   target: "오늘 체크인에서 고른 방향과 이어지는 조각이에요.",
   pleasure: "최근 즐겁게 해낸 조각과 닮았어요. 즐거움은 회복의 연료거든요.",
   avoidance: "요즘 미뤄뒀던 조각을 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.",
+  explore: "궁금하다고 해줘서 준비했어요. 가장 가벼운 것부터, 부담되면 언제든 접어도 돼요.",
+  self: "직접 계획한 조각이에요. 이게 회복의 가장 큰 신호예요.",
 };
+
+// ── 자율성 사다리 (내부 레벨 A0~A4 · SDT 내재화 연속선 기반) ──
+// 레벨 = "권한 개방"이지 요구가 아니다. 강등 없음. 사용자에게 숫자·단계명 비노출.
+// 근거: SDT OIT(Ryan&Deci 2000) · PAM 4단계(Hibbard 2004) · 스캐폴딩-페이딩(Wood 1976).
+// 임계값은 전부 자의적 초기값(데모) — 파일럿 보정 대상.
+export type AutonomyLevel = 0 | 1 | 2 | 3 | 4;
+
+export interface AutonomySignals {
+  defaultAccepts: number; // 기본값 그대로 수락한 날 수
+  swaps: number; // 기본값을 다른 조각으로 교체
+  adds: number; // 조각을 더 담음
+  readinessYes: number; // 의향 '해보고 싶어요'
+  exploreCompletions: number; // 직접 연 영역의 조각 완료
+  selfProposals: number; // 자기 조각 직접 제안
+  selfCompletions: number; // 자기 조각 완료
+}
+
+export const emptyAutonomySignals = (): AutonomySignals => ({
+  defaultAccepts: 0,
+  swaps: 0,
+  adds: 0,
+  readinessYes: 0,
+  exploreCompletions: 0,
+  selfProposals: 0,
+  selfCompletions: 0,
+});
+
+// 레벨업 시 조각이가 건네는 말(성장 프레이밍 — 시스템 언어 금지)
+export const AUTONOMY_LEVEL_MESSAGE: Record<AutonomyLevel, string | null> = {
+  0: null,
+  1: "이제 조각을 직접 바꾸거나 더 담을 수 있어요. 원할 때만요.",
+  2: "새로운 조각의 문도 열 수 있게 됐어요. 궁금할 때 알려주세요.",
+  3: "이제 나만의 조각도 만들 수 있어요. 해보고 싶은 게 있다면 뭐든요.",
+  4: "이번 주 조각들을 스스로 그려볼 수 있어요. 조각이는 옆에서 응원할게요.",
+};
+
+// 주 1회 배치 평가. 한 번에 최대 1레벨. 강등 없음.
+export function evaluateAutonomyLevel(
+  current: AutonomyLevel,
+  signals: AutonomySignals,
+  records: DayRecord[],
+  today: number,
+): { level: AutonomyLevel; message: string | null } {
+  const win = records.filter((r) => today - r.day <= 14 && r.day < today);
+  const completedDays = win.filter(
+    (r) => r.completedTarget + r.completedPleasure + r.completedAvoidance > 0,
+  ).length;
+  let next: AutonomyLevel = current;
+  if (current === 0 && completedDays >= 3) next = 1;
+  else if (current === 1 && signals.swaps + signals.adds >= 2 && completedDays >= 3) next = 2;
+  else if (current === 2 && signals.readinessYes >= 1 && signals.exploreCompletions >= 1) next = 3;
+  else if (current === 3 && signals.selfProposals >= 2 && signals.selfCompletions >= 1) next = 4;
+  if (next === current) return { level: current, message: null };
+  return { level: next, message: AUTONOMY_LEVEL_MESSAGE[next] };
+}
+
+// ── 자기 조각 제안 (A3+) — 데모용 결정적 가드 ──────────────
+// TODO(정식): LLM 검증(한 활동 원칙·안전·크기 다듬기)으로 교체. 지금은 최소 가드만.
+const SELF_BANNED = /구매|결제|주문|술|담배|밤새|자해/;
+const SELF_PARALLEL = /하고 |면서 |한 뒤|다음에 /;
+
+export function validateSelfProposal(text: string): { ok: boolean; reason?: string } {
+  const t = text.trim();
+  if (t.length < 2) return { ok: false, reason: "조금만 더 적어주세요." };
+  if (t.length > 40) return { ok: false, reason: "한 가지 행동으로, 조금 짧게 적어볼까요?" };
+  if (SELF_BANNED.test(t)) return { ok: false, reason: "이건 조각으로 담기 어려워요. 다른 걸 떠올려볼까요?" };
+  if (SELF_PARALLEL.test(t))
+    return { ok: false, reason: "한 번에 한 가지만! 그중 가장 하고 싶은 하나만 적어주세요." };
+  return { ok: true };
+}
+
+export function buildSelfSlot(dayCount: number, index: number, title: string): DaySlot {
+  return {
+    id: `${dayCount}-self-${index}`,
+    kind: "self",
+    area: AREAS.selfcare, // 통계용 기본값(자기돌봄) — 정식 버전에서 LLM이 분류
+    level: 1,
+    title: title.trim(),
+    minutes: 5,
+    reflectQ: "직접 계획한 조각, 해보니 어땠나요?",
+    toggle: "light",
+    timeOfDay: null,
+    status: "accepted",
+  };
+}
+
+// ── 미시도 영역 의향(준비도) — 데일리 3번 문항(주 1~2회 회전) ──
+// 원칙: 묻는 것 자체가 개입(MI 준비도 룰러). 답이 무엇이든 평가·재촉 없음.
+// '해보고 싶어요'일 때만 그 영역의 L1 조각이 오늘 계획 후보에 추가된다(explore).
+// 안전 게이트(isAreaEligible)는 의향과 무관하게 항상 유지.
+export type ReadinessAnswer = "not_yet" | "curious" | "yes";
+
+export interface AreaReadinessEntry {
+  day: number; // 마지막으로 답한 dayCount
+  answer: ReadinessAnswer;
+}
+
+export type AreaReadinessMap = Partial<Record<Area, AreaReadinessEntry>>;
+
+export const READINESS_OPTIONS: { value: ReadinessAnswer; label: string }[] = [
+  { value: "not_yet", label: "아직 마음이 안 가요" },
+  { value: "curious", label: "조금 궁금해요" },
+  { value: "yes", label: "해보고 싶어요" },
+];
+
+export const READINESS_ACK: Record<ReadinessAnswer, string> = {
+  not_yet: "알겠어요. 지금은 지금의 조각에 집중해요.",
+  curious: "좋아요, 아주 작은 것부터 살짝 준비해둘게요.",
+  yes: "좋아요! 오늘 아주 가벼운 것 하나를 준비했어요.",
+};
+
+// 문항 노출 주기: 주 1~2회(4일 간격). 같은 영역 재질문 쿨다운:
+// not_yet=14일(재촉 금지), curious=7일. yes는 열린 것으로 보고 재질문 없음.
+export const READINESS_ASK_INTERVAL = 4;
+const READINESS_COOLDOWN: Record<ReadinessAnswer, number> = {
+  not_yet: 14,
+  curious: 7,
+  yes: Infinity,
+};
+
+// "편안 영역(comfort)" = 묻지 않고 제안해도 되는 영역.
+// 허용 영역(잠금) 개념 폐지 — 온보딩 프로파일은 이제 초기 기본값일 뿐이고,
+// 의향 '해보고 싶어요'로 어떤 영역이든 편안 영역에 추가된다(안전 게이트만 불변).
+export function comfortAreas(stage: Stage | null, readiness: AreaReadinessMap): Area[] {
+  const base = stage ? getStageAllowedAreas(stage) : [AREAS.rhythm];
+  return [...new Set([...base, ...readinessOpenAreas(readiness)])];
+}
+
+// 영역별 기본 문턱(낮을수록 먼저 묻는다) — 데모용 자의적 초기값.
+// 정식 버전: 활동 단위 부담 메타(difficulty·contactLevel·requiresOuting·minutes)로 대체.
+const AREA_BASE_BURDEN: Record<Area, number> = {
+  rhythm: 0,
+  selfcare: 1,
+  relationship: 2,
+  social: 3,
+};
+
+// 의향 스케줄러(D): 오늘 물어볼 편안 영역 밖 후보 1개.
+// 원칙: 뜬금없이 묻지 않는다 — 문턱이 낮고, 그 사람의 부담 신호(영역 시드)가 작은 것부터.
+export function readinessCandidateArea(
+  stage: Stage | null,
+  forbidden: string[],
+  readiness: AreaReadinessMap,
+  dayCount: number,
+  areaSeeds?: Record<string, number> | null,
+): Area | null {
+  if (!stage) return null;
+  const comfort = comfortAreas(stage, readiness);
+  const candidates = (Object.keys(AREA_BASE_BURDEN) as Area[])
+    .filter((area) => !comfort.includes(area))
+    .filter((area) => isAreaEligible(area, forbidden)) // 안전 게이트 불변
+    .filter((area) => {
+      const entry = readiness[area];
+      if (!entry) return true;
+      return dayCount - entry.day >= READINESS_COOLDOWN[entry.answer];
+    })
+    // 부담도 = 기본 문턱 + 온보딩 영역 시드(부담 프로파일) 가중 — 낮은 것부터 묻는다.
+    .sort((a, b) => {
+      const burden = (area: Area) =>
+        AREA_BASE_BURDEN[area] + (areaSeeds?.[area] ?? 0) * 0.3;
+      return burden(a) - burden(b);
+    });
+  return candidates[0] ?? null;
+}
+
+// '해보고 싶어요'로 열린 영역 목록(계획 후보 공급용). 안전 게이트는 호출부에서 재확인.
+export function readinessOpenAreas(readiness: AreaReadinessMap): Area[] {
+  return (Object.keys(readiness) as Area[]).filter((a) => readiness[a]?.answer === "yes");
+}
 
 // '나 알아가기' 고정 편성 — 5챕터를 첫 가입 후 7주 안에 모두 만나도록,
 // 본 사이클 시작(온보딩 1주 다음)부터 매주 1챕터씩 예정일을 배정한다.
@@ -182,8 +352,8 @@ export interface DaySlot {
   // 상태
   status: "proposed" | "accepted" | "completed" | "skipped";
   // 사후 평정(완료 시)
-  p?: number; // 0–10 원값
-  m?: number; // 0–10 원값
+  p?: number; // 1–5 (5점 탭)
+  m?: number; // 1–5 (5점 탭)
   memo?: string; // "기억하고 싶은 순간" (선택)
   skipReason?: string;
 }
@@ -447,6 +617,12 @@ export interface PlanSlotsParams {
   nudgeDefaultNormal: boolean;
   earlyAvoidance: boolean; // 온보딩 skip_pattern으로 조기 활성화
   pleasureBoostArea?: Area | null;
+  // 의향 문항에서 '해보고 싶어요'로 직접 연 영역들 — 각각 L1 조각 1개를 후보에 추가.
+  // 난이도는 항상 L1 고정(성공확률 최대화), 안전 게이트는 여기서도 재확인한다.
+  readinessOpenAreas?: Area[];
+  // 자율성 레벨에 따른 하루 제안 개수: A0 = 1~3개, A1+ = 3~5개.
+  // 5개 구성 = 타깃2 + 즐거움1 + 회피1 + 직접 연 조각(explore)1.
+  autonomyLevel?: number;
 }
 
 // 첫 주 3슬롯(타깃2+즐거움1), 2주차부터 회피 슬롯 추가.
@@ -549,7 +725,30 @@ export function planTodaySlots(params: PlanSlotsParams): DaySlot[] {
     }
   }
 
-  return slots;
+  // 5 explore: 의향 문항으로 직접 연 영역 — 항상 L1 하나만, 허용 영역 밖이어도
+  // 사용자가 열었으면 후보에 올린다(안전 게이트만 불변).
+  const allowedNow = getStageAllowedAreas(stage);
+  for (const area of params.readinessOpenAreas ?? []) {
+    if (allowedNow.includes(area)) continue; // 이미 허용 영역이면 타깃 경로가 담당
+    if (!isAreaEligible(area, forbidden)) continue;
+    const exploreMissions = selectAreaMissions({
+      area,
+      bandLow: 1,
+      bandHigh: 1,
+      forbidden,
+      condition,
+      interest: interests[0],
+      rotation: rotation + 13,
+      count: 1,
+      avoidTitles: usedTitles,
+      usedCategories,
+    });
+    if (exploreMissions[0]) push("explore", exploreMissions[0]);
+  }
+
+  // 제안 개수 원칙: A0 = 최대 3개(타깃 위주 + 즐거움), A1+ = 최대 5개.
+  const cap = (params.autonomyLevel ?? 1) <= 0 ? 3 : 5;
+  return slots.slice(0, cap);
 }
 
 // ── 진급(주 1회 배치) ───────────────────────────────────────

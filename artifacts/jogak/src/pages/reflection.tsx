@@ -6,9 +6,11 @@ import { ChevronLeft, Camera, Check } from "lucide-react";
 import { applyCompletion, EarnedReward } from "@/lib/rewards";
 import { Character } from "@/components/Character";
 import { BadgeIcon } from "@/components/BadgeIcon";
-import { microFeedback, SKIP_REASONS } from "@/lib/ba";
 import { useVerifyChallengePhoto } from "@workspace/api-client-react";
 import { fileToDataUrl } from "@/lib/image";
+import { RewardClaimModal } from "@/components/RewardClaimModal";
+import { FurnitureItem } from "@/lib/decor";
+import { Mascot } from "@/components/Mascot";
 
 // 사후 평정 v3: 한 페이지 스크롤 — P·M 슬라이더 카드 + 메모(선택) + 사진 인증(선택).
 // '미조작'이면 내부 3으로 저장(중앙값 편향 방지). 밴드 조정은 다음 날 아침에.
@@ -43,16 +45,22 @@ function PMSliderCard({
         </span>
       </div>
       <p className="text-sm text-muted-foreground">{question}</p>
-      <input
-        type="range"
-        min={0}
-        max={10}
-        step={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-primary h-2 cursor-pointer"
-        aria-label={title}
-      />
+      <div className="flex gap-1.5" role="radiogroup" aria-label={title}>
+        {[1, 2, 3, 4, 5].map((v) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            aria-pressed={touched && value === v}
+            className={`flex-1 py-3 rounded-xl border text-sm transition-colors ${
+              touched && value === v
+                ? "bg-primary/10 border-primary/60 text-primary font-medium"
+                : "bg-white border-border/50 text-muted-foreground hover:border-primary/30"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
       <div className="flex justify-between text-[11px] text-muted-foreground">
         <span>{hintLow}</span>
         <span>{hintHigh}</span>
@@ -65,12 +73,13 @@ export function Reflection() {
   const { user, updateUser, setView } = useAppStore();
   const verifyMut = useVerifyChallengePhoto();
 
-  const [p, setP] = useState(5);
-  const [m, setM] = useState(5);
+  const [p, setP] = useState(3);
+  const [m, setM] = useState(3);
   const [pTouched, setPTouched] = useState(false);
   const [mTouched, setMTouched] = useState(false);
   const [memo, setMemo] = useState("");
   const [earned, setEarned] = useState<EarnedReward[]>([]);
+  const [earnedFurniture, setEarnedFurniture] = useState<FurnitureItem | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [skipMode, setSkipMode] = useState(false);
   const [photoAttached, setPhotoAttached] = useState(false);
@@ -105,7 +114,7 @@ export function Reflection() {
   };
 
   const handleFinish = () => {
-    // 미조작 시 내부 3 저장(0–10 원값 기준)
+    // 5점 척도(1~5, 2026-08-11 팀 결정). 미조작 시 내부 3 저장
     const pFinal = pTouched ? p : 3;
     const mFinal = mTouched ? m : 3;
 
@@ -155,7 +164,9 @@ export function Reflection() {
       pendingPraise: undefined,
     });
 
-    if (reward.earned.length > 0) {
+    if (reward.earnedFurnitureItem) {
+      setEarnedFurniture(reward.earnedFurnitureItem);
+    } else if (reward.earned.length > 0) {
       setEarned(reward.earned);
       setCelebrating(true);
     } else {
@@ -289,8 +300,8 @@ export function Reflection() {
             >
               {/* 헤더 */}
               <div className="text-center space-y-3 pt-2">
-                <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-3xl">😊</span>
+                <div className="flex justify-center">
+                  <Mascot state="happy" size="medium" speechBubble="오늘 조각을 완수했어요!" />
                 </div>
                 <h1 className="text-2xl font-semibold text-foreground">작은 조각을 맞췄어요!</h1>
                 <div className="flex justify-center">
@@ -389,6 +400,15 @@ export function Reflection() {
           )}
         </AnimatePresence>
       </div>
+
+      {earnedFurniture && (
+        <RewardClaimModal
+          item={earnedFurniture}
+          challengeTitle={slot.title}
+          onPlaceNow={() => setView("deco_room")}
+          onClose={() => setView("home")}
+        />
+      )}
     </div>
   );
 }

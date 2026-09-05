@@ -349,6 +349,7 @@ export function Home() {
       nudgeDefaultNormal: user.nudgeDefaultNormal,
       earlyAvoidance,
       pleasureBoostArea: user.pleasureBoostArea,
+      autonomyLevel: user.autonomyLevel,
     });
     updateUser({ todaySlots: slots });
   }, [user.todaySlots, user.stage, user.daily, user.phase]);

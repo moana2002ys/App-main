@@ -1,31 +1,42 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { Character } from "@/components/Character";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
-import { Area, AREAS as AREA_KEYS, getStageTargetArea, getStageAllowedAreas } from "@/lib/classifier";
-import { getSurveyCategories } from "@workspace/mission-bank";
-import { MOOD_OPTIONS, moodToCondition, GATE_RECHECK_QUESTION } from "@/lib/ba";
-
-// 개선 유형(영역) → 화면 표시 라벨. 진단 라벨·임상 용어 없음.
-const AREA_LABEL: Record<Area, string> = {
-  rhythm: "생활 리듬",
-  selfcare: "나를 돌보는 시간",
-  relationship: "사람들과의 관계",
-  social: "일이나 진로 방향",
-};
-// 유형 노출 순서(항상 안전한 생활리듬·자기돌봄이 먼저).
-const AREA_ORDER: Area[] = [
-  AREA_KEYS.rhythm,
-  AREA_KEYS.selfcare,
-  AREA_KEYS.relationship,
-  AREA_KEYS.social,
-];
+import { ChevronLeft, Check, Plus } from "lucide-react";
+import { Area } from "@/lib/classifier";
+import {
+  MOOD_OPTIONS,
+  GATE_RECHECK_QUESTION,
+  DaySlot,
+  SLOT_BADGE,
+  TimeOfDay,
+  TIME_LABEL,
+  Toggle,
+  TOGGLE_LABEL,
+  planTodaySlots,
+  summarizeOnboardingWeek,
+  readinessCandidateArea,
+  readinessOpenAreas,
+  READINESS_OPTIONS,
+  READINESS_ACK,
+  READINESS_ASK_INTERVAL,
+  ReadinessAnswer,
+  validateSelfProposal,
+  buildSelfSlot,
+} from "@/lib/ba";
 
 const INTERESTS = [
   "게임", "음악", "동물", "식물", "요리·먹는 것", "책·글", "스포츠", "그림·만들기",
 ];
+
+// 의향 문항에서 영역을 부를 때의 소망형 라벨(카테고리 어휘 비노출).
+const READINESS_AREA_LABEL: Record<Area, string> = {
+  rhythm: "하루의 리듬",
+  selfcare: "나를 돌보는",
+  relationship: "누군가와 잇는",
+  social: "바깥 세상으로 향하는",
+};
 
 // 활동 카드 이모지: 라벨 키워드 우선, 없으면 영역 기본.
 const AREA_EMOJI: Record<Area, string> = {
@@ -51,49 +62,95 @@ function activityEmoji(label: string, area: Area): string {
   return AREA_EMOJI[area];
 }
 
-// 데일리 체크인 v2.1: 한 페이지에 ① 기분 ② 활동 선택.
-// 관심사는 주 1회 카드, 4주마다 게이트 재확인 카드가 앞에 끼어들 수 있다.
+const MAX_PLAN = 3; // 계획량 상한(과잉 약속 차단) — 근거: 계획량 연구(1개 시작, 최대 3)
+
+// 데일리 체크인 v3: ① 기분 ② 오늘의 계획(미리 담긴 1개 + 추가·제거, 시간대·강도)
+// 영역 선택 단계는 제거 — 영역 대신 구체적 행동을 바로 제안한다(팀 피드백).
+// 시스템 판단(밴드·게이트·P/M·회피·diversity)은 후보 구성에서 그대로 유지된다.
+// ③ 미시도 영역 의향 문항은 주 1~2회 별도 카드로 회전(관심사 카드와 같은 날 중복 노출 금지).
 export function DailyCheckin() {
   const { updateUser, setView, user } = useAppStore();
   const [opened, setOpened] = useState(false);
 
+  // 자율성 레벨(A0~A4)에 따른 권한 개방 — 숫자·단계명은 UI에 절대 비노출.
+  const canModifyPlan = user.autonomyLevel >= 1; // 교체·추가·시간대·강도
+  const canOpenAreas = user.autonomyLevel >= 2; // 의향 카드(새 영역 관문)
+  const canSelfPropose = user.autonomyLevel >= 3; // 나만의 조각 직접 만들기
+
   const needGateRecheck = !!user.gateRecheckPending;
   const needInterestCard =
     user.interestAskedDay === null || user.dayCount - user.interestAskedDay >= 7;
+  // 의향 카드: 레벨 개방 + 주기 도래 + 물어볼 영역 존재 + 오늘 관심사 카드가 없을 때만.
+  // 후보 선정은 부담도 랭킹(D): 문턱 낮고 부담 신호 작은 영역부터.
+  const readinessArea = useMemo(
+    () =>
+      readinessCandidateArea(
+        user.stage, user.forbidden, user.areaReadiness, user.dayCount, user.areaSeeds,
+      ),
+    [user.stage, user.forbidden, user.areaReadiness, user.dayCount, user.areaSeeds],
+  );
+  const readinessDue =
+    user.readinessAskedDay === null ||
+    user.dayCount - user.readinessAskedDay >= READINESS_ASK_INTERVAL;
+  const needReadinessCard =
+    canOpenAreas && !needInterestCard && readinessDue && readinessArea !== null;
 
-  // step: 'gate' | 'interest' | 'main'(한 페이지)
-  const [step, setStep] = useState<'gate' | 'interest' | 'main'>(
-    needGateRecheck ? 'gate' : needInterestCard ? 'interest' : 'main',
+  // step: 'gate' | 'interest' | 'readiness' | 'main'
+  const [step, setStep] = useState<'gate' | 'interest' | 'readiness' | 'main'>(
+    needGateRecheck ? 'gate' : needInterestCard ? 'interest' : needReadinessCard ? 'readiness' : 'main',
   );
   const [mood, setMood] = useState<number | null>(null);
+  const [readinessAck, setReadinessAck] = useState<string | null>(null);
 
-  // ② 활동 후보 = 회복단계의 '타깃 영역' 안의 활동만.
-  // 카테고리 게이트(금지태그·최소컨디션=기분≥3)는 그대로 적용, 전부 닫히면 스텝다운.
-  const { activityGroups, targetAreaLabel } = useMemo(() => {
-    const forbidden = user.forbidden ?? [];
-    const condition = moodToCondition((mood ?? 3) as 1 | 2 | 3 | 4 | 5);
-    const open = getSurveyCategories({ forbidden, condition });
-    const allowed = getStageAllowedAreas(user.stage);
-    let targetArea = getStageTargetArea(user.stage, forbidden);
-    if (!open.some((c) => c.area === targetArea)) {
-      const idx = allowed.indexOf(targetArea);
-      for (let i = idx - 1; i >= 0; i--) {
-        if (open.some((c) => c.area === allowed[i])) {
-          targetArea = allowed[i]!;
-          break;
-        }
-      }
-    }
-    const eligible = open.filter((c) => c.area === targetArea);
-    const groups = AREA_ORDER.map((area) => ({
-      area,
-      label: AREA_LABEL[area],
-      items: eligible
-        .filter((c) => c.area === area)
-        .map((c) => ({ id: c.id, label: c.label })),
-    })).filter((g) => g.items.length > 0);
-    return { activityGroups: groups, targetAreaLabel: AREA_LABEL[targetArea] };
-  }, [user.forbidden, user.stage, mood]);
+  // ② 오늘의 계획 후보 — 기존 슬롯 엔진 그대로(게이트·허용영역·한 활동 규칙 준수).
+  // 기분이 정해지면 후보를 만들고, 첫 타깃 슬롯을 기본값으로 미리 담는다.
+  const candidates = useMemo<DaySlot[]>(() => {
+    if (mood === null || !user.stage || user.phase !== "cycle") return [];
+    const earlyAvoidance = user.onboardingWeek
+      ? summarizeOnboardingWeek(user.onboardingWeek).earlyAvoidance
+      : false;
+    return planTodaySlots({
+      dayCount: user.dayCount,
+      stage: user.stage,
+      forbidden: user.forbidden,
+      bandLow: user.currentBandLow,
+      bandHigh: user.currentBandHigh,
+      mood,
+      desiredArea: "unknown", // 영역 선택 문항 제거 — 영역 판단은 시드·엔진 몫
+      areaSeeds: user.areaSeeds,
+      interests: user.interests,
+      areaPM: user.areaPM,
+      skipLog: user.skipLog,
+      cycleStartDay: user.cycleStartDay ?? user.dayCount,
+      nudgeDefaultNormal: user.nudgeDefaultNormal,
+      earlyAvoidance,
+      pleasureBoostArea: user.pleasureBoostArea,
+      readinessOpenAreas: readinessOpenAreas(user.areaReadiness),
+      autonomyLevel: user.autonomyLevel,
+    });
+  }, [mood, user.stage, user.phase, user.forbidden, user.areaReadiness]);
+
+  // 선택 상태: 미리 담긴 기본값 = 첫 타깃 슬롯(없으면 첫 후보).
+  const [selected, setSelected] = useState<string[]>([]);
+  const [edits, setEdits] = useState<Record<string, { timeOfDay?: TimeOfDay | null; toggle?: Toggle }>>({});
+  useEffect(() => {
+    if (candidates.length === 0) { setSelected([]); return; }
+    const def = candidates.find((s) => s.kind === "target") ?? candidates[0]!;
+    setSelected([def.id]);
+    setEdits({});
+  }, [candidates]);
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_PLAN) return prev; // 상한: 조용히 무시(아래 안내문이 설명)
+      return [...prev, id];
+    });
+  };
+
+  const patchEdit = (id: string, patch: { timeOfDay?: TimeOfDay | null; toggle?: Toggle }) => {
+    setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  };
 
   // 게이트 재확인: "괜찮아졌어요" → 해당 금지 플래그 해제(단계·밴드 불변). 아니면 유지.
   const handleGateRecheck = (better: boolean) => {
@@ -103,7 +160,7 @@ export function DailyCheckin() {
       gateRecheckDay: user.dayCount,
       forbidden: better ? user.forbidden.filter((f) => f !== tag) : user.forbidden,
     });
-    setStep(needInterestCard ? 'interest' : 'main');
+    setStep(needInterestCard ? 'interest' : needReadinessCard ? 'readiness' : 'main');
   };
 
   // 주 1회 관심사 카드: 선택 시 관심사 풀 갱신 + 3일 부스트, 건너뛰기 가능.
@@ -121,10 +178,77 @@ export function DailyCheckin() {
     setStep('main');
   };
 
-  const handleActivity = (area: Area | 'unknown', activityId?: string) => {
-    updateUser({ daily: { mood: mood ?? 3, area, activityId } });
+  // 의향 문항: 답이 무엇이든 벌점·재촉 없음. '해보고 싶어요'만 오늘 계획 후보에 L1 조각 추가.
+  const handleReadiness = (answer: ReadinessAnswer) => {
+    if (!readinessArea) { setStep('main'); return; }
+    updateUser({
+      areaReadiness: {
+        ...user.areaReadiness,
+        [readinessArea]: { day: user.dayCount, answer },
+      },
+      readinessAskedDay: user.dayCount,
+      ...(answer === 'yes' && {
+        autonomySignals: {
+          ...user.autonomySignals,
+          readinessYes: user.autonomySignals.readinessYes + 1,
+        },
+      }),
+    });
+    setReadinessAck(READINESS_ACK[answer]);
+    setStep('main');
+  };
+
+  // 나만의 조각(A3+): 결정적 가드만 통과하면 계획에 담김. 정식 버전은 LLM 다듬기.
+  const [selfInput, setSelfInput] = useState("");
+  const [selfError, setSelfError] = useState<string | null>(null);
+  const [selfSlots, setSelfSlots] = useState<DaySlot[]>([]);
+  const totalPlanned = selected.length + selfSlots.length;
+
+  const handleSelfPropose = () => {
+    const check = validateSelfProposal(selfInput);
+    if (!check.ok) { setSelfError(check.reason ?? null); return; }
+    if (totalPlanned >= MAX_PLAN) return;
+    setSelfSlots((prev) => [
+      ...prev,
+      buildSelfSlot(user.dayCount, prev.length, selfInput),
+    ]);
+    setSelfInput("");
+    setSelfError(null);
+  };
+
+  // 계획 확정: 담은 조각 = accepted, 나머지 후보 = proposed(홈의 "더 하고 싶다면"으로).
+  // 자율성 신호 집계: 기본값 수락 / 교체 / 추가 / 자기 제안 — 레벨 판정(E)의 원천.
+  const handleConfirm = (ids: string[], useEdits: boolean) => {
+    if (mood === null || (ids.length === 0 && selfSlots.length === 0)) return;
+    const defaultId = defaultSlot?.id;
+    const finalSlots = candidates.map((s) => {
+      if (!ids.includes(s.id)) return s;
+      const e = useEdits ? (edits[s.id] ?? {}) : {};
+      return {
+        ...s,
+        toggle: e.toggle ?? s.toggle,
+        timeOfDay: e.timeOfDay !== undefined ? e.timeOfDay : s.timeOfDay,
+        status: "accepted" as const,
+      };
+    });
+    const acceptedDefault = defaultId !== undefined && ids.includes(defaultId);
+    const extraPicks = ids.filter((id) => id !== defaultId).length;
+    const s = user.autonomySignals;
+    updateUser({
+      daily: { mood, area: 'unknown' },
+      todaySlots: [...finalSlots, ...selfSlots],
+      autonomySignals: {
+        ...s,
+        defaultAccepts: s.defaultAccepts + (acceptedDefault && extraPicks === 0 ? 1 : 0),
+        swaps: s.swaps + (!acceptedDefault && extraPicks > 0 ? 1 : 0),
+        adds: s.adds + (acceptedDefault ? extraPicks : Math.max(0, extraPicks - 1)),
+        selfProposals: s.selfProposals + selfSlots.length,
+      },
+    });
     setView("home");
   };
+
+  const defaultSlot = candidates.find((s) => s.kind === "target") ?? candidates[0] ?? null;
 
   if (!opened) {
     return (
@@ -256,6 +380,38 @@ export function DailyCheckin() {
                 </Button>
               </div>
             </motion.div>
+          ) : step === 'readiness' ? (
+            <motion.div
+              key="readiness"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pt-6"
+            >
+              <div className="flex justify-center mb-6"><Character size="sm" /></div>
+              <div className="bg-[#FFFDF8] p-6 rounded-3xl shadow-sm border border-border/60 relative overflow-hidden">
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-primary/30"></div>
+                <p className="text-xs text-muted-foreground mb-3">문득 궁금해서요</p>
+                <p className="text-foreground text-lg leading-relaxed">
+                  {readinessArea ? READINESS_AREA_LABEL[readinessArea] : ""} 조각, 요즘은 어때요?
+                </p>
+                <p className="text-xs text-muted-foreground mt-3">
+                  어떤 답이든 괜찮아요. 지금 마음 그대로면 돼요.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {READINESS_OPTIONS.map((o) => (
+                  <Button
+                    key={o.value}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30"
+                    onClick={() => handleReadiness(o.value)}
+                  >
+                    {o.label}
+                  </Button>
+                ))}
+              </div>
+            </motion.div>
           ) : (
             <motion.div
               key="main"
@@ -268,7 +424,9 @@ export function DailyCheckin() {
               <div className="text-center space-y-3 pt-2">
                 <div className="flex justify-center"><Character size="sm" /></div>
                 <h1 className="text-2xl font-semibold text-foreground">오늘 하루는 어떤가요?</h1>
-                {user.lastMessage ? (
+                {readinessAck ? (
+                  <p className="text-sm text-primary">{readinessAck}</p>
+                ) : user.lastMessage ? (
                   <p className="text-sm text-primary">{user.lastMessage}</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">솔직한 지금 그대로면 충분해요.</p>
@@ -302,44 +460,170 @@ export function DailyCheckin() {
                 </div>
               </section>
 
-              {/* ② 활동 선택 */}
+              {/* ② 오늘의 계획 — 미리 담긴 1개 + 원하면 추가·교체 */}
               <AnimatePresence>
-                {mood !== null && (
+                {mood !== null && candidates.length > 0 && (
                   <motion.section
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">2</span>
-                      <p className="text-sm font-medium text-foreground">오늘은 어떤 걸 해보고 싶나요?</p>
-                    </div>
-                    <div className="flex">
-                      <span className="px-3 py-1.5 bg-secondary rounded-full text-xs text-foreground">
-                        {targetAreaLabel} · 지금 함께 맞추고 있는 조각
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {activityGroups.flatMap((group) =>
-                        group.items.map((item) => (
-                          <button
-                            key={item.id}
-                            onClick={() => handleActivity(group.area, item.id)}
-                            className="flex flex-col items-start gap-2 p-4 rounded-2xl bg-white border border-border/50 hover:bg-secondary/50 hover:border-primary/40 transition-colors text-left"
-                          >
-                            <span className="text-2xl">{activityEmoji(item.label, group.area)}</span>
-                            <span className="text-sm font-medium text-foreground leading-snug">{item.label}</span>
-                            <span className="text-[11px] text-muted-foreground">{group.label}</span>
-                          </button>
-                        )),
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">2</span>
+                        <p className="text-sm font-medium text-foreground">오늘의 조각, 미리 담아뒀어요</p>
+                      </div>
+                      {canModifyPlan && (
+                        <span className="text-[11px] text-muted-foreground">{totalPlanned} / {MAX_PLAN}</span>
                       )}
-                      <button
-                        onClick={() => handleActivity('unknown', undefined)}
-                        className="col-span-2 flex items-center justify-center gap-2 p-4 rounded-2xl bg-white border border-dashed border-border/70 hover:bg-secondary/50 transition-colors text-muted-foreground"
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-2">
+                      {canModifyPlan
+                        ? "이대로도 충분해요. 원하면 바꾸거나 더 담아도 돼요."
+                        : "오늘은 이거 하나면 충분해요."}
+                    </p>
+
+                    <div className="space-y-2.5">
+                      {candidates.map((slot) => {
+                        const isSelected = selected.includes(slot.id);
+                        const e = edits[slot.id] ?? {};
+                        const timeOfDay = e.timeOfDay !== undefined ? e.timeOfDay : slot.timeOfDay;
+                        const toggle = e.toggle ?? slot.toggle;
+                        return (
+                          <div
+                            key={slot.id}
+                            className={`rounded-2xl border transition-colors ${
+                              isSelected ? "bg-primary/5 border-primary/50" : "bg-white border-border/50"
+                            }`}
+                          >
+                            <button
+                              onClick={() => canModifyPlan && toggleSelect(slot.id)}
+                              className="w-full flex items-start gap-3 p-4 text-left"
+                              aria-pressed={isSelected}
+                              disabled={!canModifyPlan}
+                            >
+                              <span className="text-2xl leading-none pt-0.5">{activityEmoji(slot.title, slot.area)}</span>
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-sm font-medium text-foreground leading-snug">{slot.title}</span>
+                                <span className="block text-[11px] text-muted-foreground mt-1">
+                                  {SLOT_BADGE[slot.kind]} · 약 {slot.minutes}분
+                                </span>
+                              </span>
+                              {canModifyPlan && (
+                                <span
+                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? "bg-primary border-primary text-white"
+                                      : "border-border/70 text-muted-foreground"
+                                  }`}
+                                  aria-hidden="true"
+                                >
+                                  {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                                </span>
+                              )}
+                            </button>
+
+                            {isSelected && canModifyPlan && (
+                              <div className="px-4 pb-4 space-y-2.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] text-muted-foreground w-8 shrink-0">언제</span>
+                                  {(Object.keys(TIME_LABEL) as TimeOfDay[]).map((t) => (
+                                    <button
+                                      key={t}
+                                      onClick={() => patchEdit(slot.id, { timeOfDay: timeOfDay === t ? null : t })}
+                                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                                        timeOfDay === t
+                                          ? "bg-primary/10 border-primary/60 text-primary font-medium"
+                                          : "bg-white border-border/50 text-muted-foreground hover:border-primary/30"
+                                      }`}
+                                    >
+                                      {TIME_LABEL[t]}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] text-muted-foreground w-8 shrink-0">강도</span>
+                                  {(Object.keys(TOGGLE_LABEL) as Toggle[]).map((t) => (
+                                    <button
+                                      key={t}
+                                      onClick={() => patchEdit(slot.id, { toggle: t })}
+                                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                                        toggle === t
+                                          ? "bg-primary/10 border-primary/60 text-primary font-medium"
+                                          : "bg-white border-border/50 text-muted-foreground hover:border-primary/30"
+                                      }`}
+                                    >
+                                      {TOGGLE_LABEL[t]}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 나만의 조각 (A3+ 권한 개방 시에만 노출) */}
+                    {canSelfPropose && (
+                      <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/[0.03] p-4 space-y-2.5">
+                        <p className="text-sm font-medium text-foreground">나만의 조각 만들기</p>
+                        <p className="text-[11px] text-muted-foreground -mt-1">
+                          해보고 싶은 게 있다면 뭐든 적어보세요. 아주 작아도 좋아요.
+                        </p>
+                        {selfSlots.map((s, i) => (
+                          <div key={s.id} className="flex items-center justify-between rounded-xl bg-white border border-primary/30 px-3 py-2.5">
+                            <span className="text-sm text-foreground">{s.title}</span>
+                            <button
+                              onClick={() => setSelfSlots((prev) => prev.filter((_, j) => j !== i))}
+                              className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1"
+                            >
+                              빼기
+                            </button>
+                          </div>
+                        ))}
+                        {totalPlanned < MAX_PLAN && (
+                          <div className="flex gap-2">
+                            <input
+                              value={selfInput}
+                              onChange={(e) => { setSelfInput(e.target.value); setSelfError(null); }}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSelfPropose()}
+                              placeholder="예: 베란다에서 커피 한 잔"
+                              className="flex-1 rounded-xl border border-border/60 bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+                              aria-label="나만의 조각 입력"
+                            />
+                            <Button variant="outline" className="rounded-xl shrink-0" onClick={handleSelfPropose}>
+                              담기
+                            </Button>
+                          </div>
+                        )}
+                        {selfError && <p className="text-[11px] text-primary">{selfError}</p>}
+                      </div>
+                    )}
+
+                    {totalPlanned >= MAX_PLAN && (
+                      <p className="text-[11px] text-muted-foreground text-center">
+                        오늘은 이만하면 충분해요. 작게 시작하는 게 오래 가요.
+                      </p>
+                    )}
+
+                    <div className="space-y-2 pt-1">
+                      <Button
+                        size="lg"
+                        className="w-full rounded-2xl h-14"
+                        disabled={totalPlanned === 0}
+                        onClick={() => handleConfirm(selected, true)}
                       >
-                        <span className="text-xl">🤔</span>
-                        <span className="text-sm">잘 모르겠어요 — 골라주셔도 좋아요</span>
-                      </button>
+                        이대로 좋아요
+                      </Button>
+                      {canModifyPlan && defaultSlot && (
+                        <button
+                          onClick={() => handleConfirm([defaultSlot.id], false)}
+                          className="w-full text-center text-xs text-muted-foreground py-1.5 hover:text-foreground transition-colors"
+                        >
+                          잘 모르겠어요 — 담아둔 대로 할게요
+                        </button>
+                      )}
                     </div>
                   </motion.section>
                 )}

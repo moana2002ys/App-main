@@ -8,6 +8,10 @@ import { Plus, X, RotateCw, Lock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
+import { MascotBadge } from "@/components/MascotBadge";
+
+import { Mascot, MascotState } from "@/components/Mascot";
+
 const GRID_SIZE = 10;
 const CELL_SIZE = 32;
 
@@ -16,7 +20,16 @@ export function DecoRoom() {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [mascotState, setMascotState] = useState<MascotState>('welcome');
   const roomRef = useRef<HTMLDivElement>(null);
+
+  // 첫 진입 2초 후 welcome -> idle 로 전환
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMascotState('idle');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const placements = user.roomPlacements;
   const selected = placements.find((p) => p.id === selectedId) ?? null;
@@ -29,16 +42,23 @@ export function DecoRoom() {
       toast({ title: `'${info.badgeTitle}' 배지가 필요해요`, description: info.hint });
       return;
     }
+
+    const defaultX = item.defaultPos?.x ?? Math.floor(GRID_SIZE / 2) - Math.floor(item.size.w / 2);
+    const defaultY = item.defaultPos?.y ?? Math.floor(GRID_SIZE / 2) - Math.floor(item.size.h / 2);
+
     const newItem: PlacedFurniture = {
       id: Math.random().toString(36).slice(2, 11),
       furnitureId: item.id,
-      x: Math.floor(GRID_SIZE / 2) - Math.floor(item.size.w / 2),
-      y: Math.floor(GRID_SIZE / 2) - Math.floor(item.size.h / 2),
+      x: Math.max(0, Math.min(defaultX, GRID_SIZE - item.size.w)),
+      y: Math.max(0, Math.min(defaultY, GRID_SIZE - item.size.h)),
       rotation: 0,
     };
     setPlacements([...placements, newItem]);
     setSelectedId(newItem.id);
     setShowCatalog(false);
+    setMascotState('happy');
+    setTimeout(() => setMascotState('idle'), 2000);
+    toast({ title: `'${item.name}'을(를) 방에 배치했어요!`, description: '드래그해서 위치를 자유롭게 바꿀 수 있어요.' });
   };
 
   const handleRotate = (p: PlacedFurniture) => {
@@ -75,16 +95,19 @@ export function DecoRoom() {
           <ArrowLeft className="w-4 h-4" />
           돌아가기
         </Button>
-        <button
-          onClick={() => setShowCatalog(true)}
-          className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
-          aria-label="가구 추가"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <MascotBadge />
+          <button
+            onClick={() => setShowCatalog(true)}
+            className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
+            aria-label="가구 추가"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      <p className="text-center text-sm font-bold text-foreground shrink-0 z-10">내 공간 꾸미기</p>
+      <p className="text-center text-base font-extrabold text-foreground shrink-0 z-10">🏡 나의 집 (My Studio Room)</p>
 
       {/* 방 */}
       <div className="flex-1 relative flex items-center justify-center p-4">
@@ -100,6 +123,15 @@ export function DecoRoom() {
         >
           {/* 뒷벽 */}
           <div className="absolute top-0 left-0 w-full h-[96px] bg-orange-50/50 border-b-2 border-orange-100 z-0 back-wall"></div>
+
+          {/* 동행자 마스코트 디딤이 (My Home 내부 동주) */}
+          <div className="absolute z-30 pointer-events-auto" style={{ left: 4 * CELL_SIZE, top: 4 * CELL_SIZE }}>
+            <Mascot
+              state={mascotState}
+              size="sm"
+              speechBubble={mascotState === 'welcome' ? "어서와요! 방에 온 걸 환영해요 🌙" : undefined}
+            />
+          </div>
 
           {placements.map((p) => {
             const meta = FURNITURE_CATALOG.find((f) => f.id === p.furnitureId);

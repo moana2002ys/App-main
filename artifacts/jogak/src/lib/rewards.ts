@@ -23,8 +23,8 @@ export const AREA_LABELS: Record<Area, string> = {
 
 export const ALL_AREAS: Area[] = [AREAS.rhythm, AREAS.selfcare, AREAS.relationship, AREAS.social];
 
-// 방 안 → 방 밖 → 현관·창밖 → 동네
-export const BACKGROUND_STAGES = ["방 안", "방 밖", "현관·창밖", "동네"] as const;
+// 방 안 → 집 안 (거실) → 집 전체 (My Home) → 동네
+export const BACKGROUND_STAGES = ["방 안", "집 안 (거실)", "집 전체 (My Home)", "동네"] as const;
 
 export interface ItemMeta {
   id: string;
@@ -198,8 +198,22 @@ export interface RewardState {
   growthLog: GrowthEvent[];
 }
 
+import { FURNITURE_CATALOG, FurnitureItem } from "./decor";
+
+export interface EarnedReward {
+  categoryId: string;
+  title: string;
+  badgeName: string;
+  itemId?: string;
+  itemLabel?: string;
+  area: Area;
+  backgroundLabel?: string;
+  earnedFurniture?: FurnitureItem;
+}
+
 export interface RewardResult extends RewardState {
   earned: EarnedReward[];
+  earnedFurnitureItem?: FurnitureItem;
 }
 
 export function itemIdForCategory(cat: Category, interest?: string | null): string {
@@ -207,7 +221,7 @@ export function itemIdForCategory(cat: Category, interest?: string | null): stri
 }
 
 // 완료 처리: 카테고리 분류 → category_counts[cat] += 1
-//  → == 3 이면 뱃지 + 아이템 지급·장착 + (해당 시) 배경 확장
+//  → 뱃지 및 대응 가구 소품 해금
 export function applyCompletion(
   prev: RewardState & { day: number; interest?: string | null },
   challenge: Challenge
@@ -228,7 +242,10 @@ export function applyCompletion(
 
   log.push({ day: prev.day, type: "complete", area, category: catId, label: challenge.title });
 
-  if (counts[catId] === BADGE_THRESHOLD && !badges.includes(catId)) {
+  // 챌린지와 매핑된 가구 소품 해금
+  const matchedFurniture = FURNITURE_CATALOG.find(f => f.unlockCategoryId === catId) || FURNITURE_CATALOG[0];
+
+  if (counts[catId] >= BADGE_THRESHOLD && !badges.includes(catId)) {
     badges.push(catId);
     const itemId = itemIdForCategory(cat, prev.interest);
     if (itemId && !equipped.includes(itemId)) equipped.push(itemId);
@@ -249,6 +266,7 @@ export function applyCompletion(
       itemLabel: ITEMS[itemId]?.label ?? "",
       area,
       backgroundLabel,
+      earnedFurniture: matchedFurniture,
     });
   }
 
@@ -261,5 +279,6 @@ export function applyCompletion(
     backgroundStage: bg,
     growthLog: log,
     earned,
+    earnedFurnitureItem: matchedFurniture,
   };
 }

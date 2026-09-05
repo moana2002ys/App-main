@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { BACKGROUND_STAGES, AREA_LABELS, ALL_AREAS, areaTotals } from "@/lib/rewards";
 import { MoodEntry, weeklyMoodSummary, MOODS } from "@/lib/cycle";
 import { RetrospectiveSection } from "@/components/growth/RetrospectiveSection";
-import { CollectionSection } from "@/components/growth/CollectionSection";
 import { Area } from "@/lib/classifier";
+import { IsoCanvas } from "@/components/IsoCanvas";
+import { MascotBadge } from "@/components/MascotBadge";
 
 const AREA_COLORS: Record<Area, string> = {
   rhythm: "#FFD55F",
@@ -83,9 +84,12 @@ export function Growth() {
           <Button variant="ghost" size="sm" className="rounded-full -ml-2 text-muted-foreground" onClick={() => setView("home")}>
             ← 돌아가기
           </Button>
-          <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
-            🌿 {BACKGROUND_STAGES[user.backgroundStage]}
-          </span>
+          <div className="flex items-center gap-2">
+            <MascotBadge />
+            <Button size="sm" className="rounded-full bg-[#4A7C59] text-white hover:bg-[#3B6447]" onClick={() => setView("recovery_report")}>
+              📊 회복 리포트
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
@@ -93,12 +97,17 @@ export function Growth() {
           </motion.div>
           <div>
             <h1 className="text-[20px] font-bold text-foreground">{user.nickname || "조각이 친구"}님의 기록</h1>
-            <p className="text-[13px] text-muted-foreground">지금까지 모아온 조각들이에요</p>
+            <p className="text-[13px] text-muted-foreground">지금까지 모아온 조각들과 픽셀 지도예요</p>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-5 pb-8 space-y-5">
+        {/* 아이소메트릭 픽셀 지도 */}
+        <section className="bg-white rounded-[24px] p-4 border border-card-border shadow-sm">
+          <h3 className="text-[15px] font-semibold text-foreground mb-2">🗺️ 내 픽셀 공간 지도</h3>
+          <IsoCanvas spaceKey="room" />
+        </section>
         {/* 요약 — 스트릭(연속) 표시 금지. 누적값만 보여준다(끊겨도 잃지 않음) */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-[20px] p-4 border border-card-border shadow-sm text-center">

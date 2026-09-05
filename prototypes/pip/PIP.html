@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PIP · 핍</title>
+<style>
+:root{
+  --bg:#F6F1E8; --card:#FFFDF9; --ink:#2B2724; --sub:#6F6660;
+  --line:#E7DDCE; --glow:#E9A63C; --glow2:#F7D08A; --rest:#8FA8B8; --outline:#3A3340;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:#EDE6DA; color:var(--ink);
+  font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit}
+.app{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;overflow-x:hidden;padding-bottom:78px}
+
+/* ---------- 공통 ---------- */
+.pad{padding:0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px}
+.muted{color:var(--sub)}
+.sec-title{margin:22px 18px 0;font-size:13px;color:var(--sub);font-weight:600;display:flex;justify-content:space-between;align-items:baseline}
+.btn{font-size:14px;padding:11px 15px;border-radius:12px;border:1px solid var(--line);background:var(--card);cursor:pointer}
+.btn.solid{background:var(--ink);border-color:var(--ink);color:#FFF8EC;font-weight:600}
+.btn.grow{flex:1}
+.btn.warn{color:#A8564B;border-color:#E6CFC9}
+.btn:disabled{opacity:.4;cursor:default}
+.btn[aria-pressed="true"]{background:#F3E7CE;border-color:var(--glow2);font-weight:600}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.shard-dot{width:9px;height:9px;background:var(--glow);border-radius:2px;transform:rotate(45deg);display:inline-block}
+.tagdemo{display:inline-block;font-size:10px;color:#9A9086;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:1px;font-weight:500}
+.tagphoto{display:inline-block;font-size:10.5px;color:#9A8A63;background:#FAF2E1;border:1px solid #EFE0C2;border-radius:5px;padding:1px 6px;font-weight:500}
+
+/* ---------- 헤더 ---------- */
+header.head{padding:22px 18px 4px;display:flex;align-items:center;gap:11px}
+header.head canvas{image-rendering:pixelated;flex:none;margin:-4px 0}
+header.head h1{margin:0;font-size:19px;font-weight:700;letter-spacing:0}
+header.head h1 .ko{font-size:14px;font-weight:600;color:var(--sub);margin-left:5px;letter-spacing:-.4px}
+header.head p{margin:1px 0 0;font-size:11.5px;color:var(--sub)}
+header.head .shards{margin-left:auto;font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:5px;white-space:nowrap}
+
+/* ---------- 탭바 ---------- */
+.tabbar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;z-index:30;
+  display:flex;background:rgba(255,253,249,.97);border-top:1px solid var(--line);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));backdrop-filter:blur(6px);
+}
+.tabbar button{flex:1;border:0;background:none;padding:7px 2px 5px;cursor:pointer;color:#A79D92;font-size:11px;line-height:1.3}
+.tabbar button .ic{display:block;font-size:17px;line-height:1.1;margin-bottom:2px;filter:grayscale(1) opacity(.55)}
+.tabbar button[aria-selected="true"]{color:var(--ink);font-weight:700}
+.tabbar button[aria-selected="true"] .ic{filter:none}
+.tabbar .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--glow);margin-left:3px;vertical-align:2px}
+
+/* ---------- 오늘 ---------- */
+.stepnote{margin:14px 18px 0;font-size:12.5px;color:var(--sub)}
+.mood{display:flex;gap:6px;margin-top:12px}
+.mood button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 2px 9px;cursor:pointer;text-align:center}
+.mood button .e{display:block;font-size:21px;line-height:1.15}
+.mood button .l{display:block;font-size:10.5px;color:var(--sub);margin-top:3px}
+.mood button[aria-pressed="true"]{background:#F3E7CE;border-color:var(--glow2)}
+.mood button[aria-pressed="true"] .l{color:#8A7444;font-weight:600}
+
+.pieces{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.piece{
+  width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:16px;
+  padding:14px 15px;cursor:pointer;display:block;position:relative;
+}
+.piece:active{background:#FBF6EC}
+.piece .top{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.piece .slot{font-size:10.5px;font-weight:700;letter-spacing:.2px;padding:2px 7px;border-radius:999px}
+.piece .slot.target{background:#F3E7CE;color:#8A6A22}
+.piece .slot.note{background:#EFE9DE;color:#6F6660}
+.piece .slot.pleasure{background:#E4EFE2;color:#4F6B48}
+.piece .slot.avoid{background:#E3EBF1;color:#4A6577}
+.piece .slot.self{background:#F0E6F1;color:#6B4E72}
+.piece h3{margin:0;font-size:16px;font-weight:600;letter-spacing:-.3px;line-height:1.4}
+.piece .why{margin:6px 0 0;font-size:12.5px;color:var(--sub);line-height:1.5}
+.piece .foot{margin-top:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.piece.sel{border-color:var(--glow);box-shadow:0 0 0 3px rgba(233,166,60,.16)}
+
+.chosen{margin:12px 18px 0;padding:18px 16px;background:var(--card);border:1px solid var(--line);border-radius:18px}
+.chosen .slot{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#F3E7CE;color:#8A6A22}
+.chosen h2{margin:9px 0 0;font-size:20px;font-weight:700;letter-spacing:-.4px;line-height:1.35}
+.chosen .why{margin:8px 0 0;font-size:13px;color:var(--sub)}
+.chosen .acts{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.chosen .acts .btn{width:100%;padding:13px}
+
+.scale{display:flex;gap:6px;margin-top:9px}
+.scale button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 0;cursor:pointer;font-size:15px;font-weight:600;color:var(--sub)}
+.scale button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#FFF8EC}
+.scale-hint{display:flex;justify-content:space-between;font-size:11px;color:#A79D92;margin-top:5px}
+
+.reward{margin:12px 18px 0;padding:22px 18px;background:var(--card);border:1px solid var(--line);border-radius:18px;text-align:center}
+.reward .big{font-size:30px;font-weight:800;color:var(--glow);letter-spacing:-1px}
+.reward .big span{font-size:14px;color:var(--sub);font-weight:600;margin-left:5px;letter-spacing:0}
+.reward h2{margin:10px 0 0;font-size:17px;font-weight:700}
+.reward p{margin:6px 0 0;font-size:13px;color:var(--sub);line-height:1.6}
+.reward .lines{margin:14px auto 0;max-width:250px;text-align:left;font-size:12.5px;color:var(--sub)}
+.reward .lines div{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)}
+.reward .lines div:last-child{border-bottom:0;font-weight:600;color:var(--ink)}
+.reward .thumb{width:120px;border-radius:10px;border:2px solid var(--outline);margin:14px auto 0;display:block}
+
+/* ---------- 지도 ---------- */
+.devbar{display:flex;align-items:center;gap:8px;margin:12px 18px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:12px;background:#FBF6EC}
+.devbar .lab{font-size:11px;color:#9A9086;white-space:nowrap}
+.seg{display:flex;gap:4px;margin-left:auto}
+.seg button{font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--sub);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#FFF8EC}
+
+.journey{margin:14px 18px 0;padding:14px 16px 12px;background:var(--card);border:1px solid var(--line);border-radius:16px}
+.strip{display:flex;align-items:center}
+.node{width:11px;height:11px;border-radius:50%;flex:none;border:2px solid var(--line);background:var(--card)}
+.node.on{background:var(--glow);border-color:var(--glow)}
+.node.cur{background:var(--glow);border-color:var(--glow);box-shadow:0 0 0 4px rgba(233,166,60,.2)}
+.bar{flex:1;height:2px;background:var(--line)}
+.bar.on{background:var(--glow2)}
+.journey .cap{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px}
+.journey .cap b{font-size:13.5px;font-weight:600}
+.journey .cap b em{font-style:normal;color:var(--glow)}
+.shards{font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:5px}
+
+.chips{display:flex;gap:7px;overflow-x:auto;padding:16px 18px 6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{font-size:13px;white-space:nowrap;flex:none;cursor:pointer;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);position:relative}
+.chip .n{color:var(--sub);font-size:11.5px;margin-left:5px}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#FFF8EC}
+.chip[aria-pressed="true"] .n{color:#D8CFC1}
+.chip.locked{background:#EFE9DE;color:#A79D92;border-style:dashed;cursor:default}
+.chip.isnew::after{content:"NEW";position:absolute;top:-7px;right:-4px;background:var(--glow);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;letter-spacing:.3px}
+.chip.newring{box-shadow:0 0 0 3px rgba(233,166,60,.2)}
+
+.stage{margin-top:12px;display:flex;justify-content:center}
+.scene{position:relative;overflow:hidden}
+.scene canvas.bg{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.veil{position:absolute;inset:0;background:#171219;opacity:0;pointer-events:none;transition:opacity 1s ease-out}
+.veil.on{opacity:.9;transition:none}
+.unlock-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,253,249,.95);border:1px solid var(--glow2);padding:8px 16px;border-radius:999px;font-size:13.5px;font-weight:600;opacity:0;transition:opacity .4s ease;pointer-events:none;white-space:nowrap}
+.unlock-msg.on{opacity:1}
+
+.frame{position:absolute;cursor:pointer;background:#FFFDF9;border:2px solid var(--outline);padding:0;line-height:0;display:block}
+.frame .ph{display:block;width:100%;background:#E7DDCE;object-fit:cover}
+.frame .cap{display:block;text-align:center;color:#6F6660;font-weight:600;line-height:1;letter-spacing:-.2px}
+.frame .empty{display:flex;align-items:center;justify-content:center;width:100%;background:repeating-linear-gradient(135deg,#EDE4D6 0 4px,#E4DACA 4px 8px);color:#9A9086;line-height:1}
+.frame.rest .empty{background:repeating-linear-gradient(135deg,#DCE6EC 0 4px,#D2DDE5 4px 8px);color:#6C8493}
+.frame.wallL{box-shadow:2px 2px 0 rgba(58,51,64,.16)}
+.frame.wallR{box-shadow:-2px 2px 0 rgba(58,51,64,.16)}
+.frame.ground{transform-origin:50% 100%;box-shadow:0 2px 0 rgba(58,51,64,.14)}
+.stake{position:absolute;background:var(--outline);pointer-events:none}
+
+.spaceinfo{margin:16px 18px 0}
+.spaceinfo h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.3px}
+.spaceinfo .desc{margin:3px 0 0;color:var(--sub);font-size:13px}
+.badge-new{background:var(--glow);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;margin-left:7px;vertical-align:3px}
+.lockcard{margin:14px 18px 0;padding:14px 16px;border-radius:16px;background:#F1EADF;border:1px dashed #DCD1BF;color:var(--sub);font-size:13.5px;line-height:1.6}
+.lockcard b{color:var(--ink);font-weight:600}
+.mascot{margin:14px 18px 0;display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:11px 14px}
+.mascot canvas{image-rendering:pixelated;flex:none}
+.mascot .say{font-size:13px;color:var(--sub);line-height:1.5}
+.mascot .say b{color:var(--ink);font-weight:600}
+
+.list{margin:10px 18px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;border-top:1px solid var(--line);cursor:pointer;background:none;width:100%;text-align:left}
+.row:first-child{border-top:0}
+.row .th{width:44px;height:44px;border-radius:8px;flex:none;background:#EDE4D6;border:1px solid var(--line);object-fit:cover;display:block}
+.row .thn{width:44px;height:44px;border-radius:8px;flex:none;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;color:#B3A99D;background:repeating-linear-gradient(135deg,#EDE4D6 0 5px,#E4DACA 5px 10px)}
+.row .meta{display:block;min-width:0;flex:1}
+.row .t{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .d{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.row .sh{font-size:11.5px;color:var(--glow);font-weight:600;flex:none}
+.row.rest .t{color:#5C7889}
+.row.rest .thn{background:repeating-linear-gradient(135deg,#DCE6EC 0 5px,#D2DDE5 5px 10px);color:#6C8493}
+.empty-note{padding:22px 16px;color:var(--sub);font-size:13.5px;text-align:center;line-height:1.6}
+.hint{margin:12px 18px 0;font-size:12px;color:#9A9086}
+
+/* ---------- 기록함 ---------- */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 18px 0}
+.tile{position:relative;aspect-ratio:1;border:2px solid var(--outline);border-radius:8px;overflow:hidden;background:#EDE4D6;cursor:pointer;padding:0;display:block}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .none{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#9A9086;background:repeating-linear-gradient(135deg,#EDE4D6 0 5px,#E4DACA 5px 10px);line-height:1.3;text-align:center;padding:4px}
+.tile.rest .none{background:repeating-linear-gradient(135deg,#DCE6EC 0 5px,#D2DDE5 5px 10px);color:#6C8493}
+.tile .dt{position:absolute;left:0;right:0;bottom:0;background:rgba(255,253,249,.92);font-size:9.5px;text-align:center;color:#6F6660;padding:2px 0;font-weight:600}
+.filters{display:flex;gap:6px;overflow-x:auto;padding:14px 18px 0;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 18px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 13px}
+.stat .k{font-size:11.5px;color:var(--sub)}
+.stat .v{font-size:20px;font-weight:700;margin-top:2px;letter-spacing:-.5px}
+.stat .v small{font-size:12px;font-weight:600;color:var(--sub);margin-left:2px}
+
+/* ---------- 리포트 ---------- */
+.levelcard{margin:12px 18px 0;padding:18px 16px;border-radius:18px;background:linear-gradient(160deg,#FDF6E7,#FFFDF9);border:1px solid var(--glow2)}
+.levelcard .lv{font-size:12px;color:#A0873F;font-weight:700;letter-spacing:.4px}
+.levelcard h2{margin:5px 0 0;font-size:19px;font-weight:700;letter-spacing:-.4px}
+.levelcard p{margin:8px 0 0;font-size:13px;color:var(--sub);line-height:1.6}
+.ladder{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+.ladder .step{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#A79D92}
+.ladder .step .dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--line);background:var(--card);flex:none;margin-top:4px}
+.ladder .step.done{color:var(--sub)}
+.ladder .step.done .dot{background:var(--glow2);border-color:var(--glow2)}
+.ladder .step.now{color:var(--ink);font-weight:600}
+.ladder .step.now .dot{background:var(--glow);border-color:var(--glow);box-shadow:0 0 0 3px rgba(233,166,60,.2)}
+.note{margin:12px 18px 0;padding:15px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-size:13px;line-height:1.7;color:var(--sub)}
+.note h3{margin:0 0 8px;font-size:14px;color:var(--ink);font-weight:700}
+.note ul{margin:0;padding-left:17px}
+.note li{margin:4px 0}
+.note table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.note td{padding:5px 0;border-bottom:1px solid var(--line)}
+.note td:last-child{text-align:right;font-weight:600;color:var(--ink)}
+.note tr:last-child td{border-bottom:0}
+
+/* ---------- 온보딩 ---------- */
+.onb{position:fixed;inset:0;z-index:80;background:var(--bg);overflow-y:auto;display:flex;justify-content:center}
+.onb-in{width:100%;max-width:430px;padding:0 18px 40px;display:flex;flex-direction:column;min-height:100vh}
+.onb-top{padding:16px 0 8px;display:flex;align-items:center;gap:10px}
+.onb-bar{flex:1;height:3px;background:var(--line);border-radius:3px;overflow:hidden}
+.onb-bar i{display:block;height:100%;background:var(--glow2);border-radius:3px;transition:width .35s ease}
+.onb-skip{border:0;background:none;font-size:12px;color:#A79D92;cursor:pointer;padding:4px 2px}
+.onb-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 0 24px}
+.onb-hi{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.onb-hi canvas{image-rendering:pixelated;flex:none;align-self:flex-end}
+.onb-hi .bubble{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:11px 14px;font-size:13.5px;line-height:1.6}
+.onb h2{margin:0 0 4px;font-size:22px;font-weight:700;letter-spacing:-.6px;line-height:1.4}
+.onb .lead{margin:0 0 18px;font-size:13.5px;color:var(--sub);line-height:1.65}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opts button{width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:13px 15px;font-size:14.5px;cursor:pointer}
+.opts button:active{background:#FBF6EC}
+.opts.row4{flex-direction:row;gap:6px}
+.opts.row4 button{text-align:center;padding:13px 4px;font-size:12.5px}
+.tagpick{display:flex;flex-wrap:wrap;gap:7px}
+.tagpick button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 14px;font-size:13.5px;cursor:pointer}
+.tagpick button[aria-pressed="true"]{background:#F3E7CE;border-color:var(--glow2);font-weight:600}
+.onb-foot{padding-top:6px}
+.onb-foot .btn{width:100%;padding:14px}
+
+/* ---------- 모달 ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(30,26,24,.46);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:430px;background:var(--card);border-radius:20px 20px 0 0;padding:18px 18px 26px;max-height:90vh;overflow-y:auto}
+.sheet h3{margin:0 0 4px;font-size:17px;font-weight:700}
+.sheet .sub{margin:0 0 14px;color:var(--sub);font-size:12.5px}
+.bigphoto{width:100%;border-radius:12px;border:2px solid var(--outline);display:block;background:#EDE4D6;aspect-ratio:4/3;object-fit:cover}
+.nophoto{width:100%;border-radius:12px;border:2px solid var(--outline);aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#8C8277;font-size:13px;background:repeating-linear-gradient(135deg,#EDE4D6 0 6px,#E4DACA 6px 12px)}
+.kv{display:flex;gap:8px;font-size:13.5px;padding:8px 0;border-bottom:1px solid var(--line)}
+.kv .k{width:64px;color:var(--sub);flex:none}
+.note-priv{margin-top:10px;font-size:11.5px;color:#9A9086;line-height:1.55}
+input[type=text],textarea{width:100%;font:inherit;font-size:14px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#FFF;color:var(--ink);resize:none}
+textarea{min-height:62px}
+.check{display:flex;align-items:center;gap:9px;margin-top:12px;font-size:13.5px;cursor:pointer;line-height:1.4}
+.check input{width:18px;height:18px;flex:none;accent-color:var(--glow)}
+.photo-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.thumbprev{width:56px;height:56px;border-radius:9px;border:1px solid var(--line);object-fit:cover;display:none}
+.thumbprev.on{display:block}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;z-index:60;background:rgba(43,39,36,.93);color:#FFF8EC;font-size:13px;padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .3s ease;pointer-events:none;max-width:88%;text-align:center}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="head">
+    <canvas id="hdMascot" width="40" height="38"></canvas>
+    <div>
+      <h1>PIP <span class="ko">핍</span></h1>
+      <p>내 속도대로 한 걸음씩</p>
+    </div>
+    <span class="shards"><i class="shard-dot"></i><span id="hdShard">0</span></span>
+  </header>
+
+  <!-- ============ 오늘 ============ -->
+  <section id="tab-today">
+    <div id="todayBody"></div>
+  </section>
+
+  <!-- ============ 지도 ============ -->
+  <section id="tab-map" hidden>
+    <div class="pad" style="padding-top:10px">
+      <h2 style="margin:0;font-size:21px;letter-spacing:-.5px">나의 공간</h2>
+      <p class="muted" style="margin:6px 0 0;font-size:13px;line-height:1.6">
+        현실에서 해낸 작은 행동이 사진으로 남고,<br>그 기록이 쌓인 만큼 갈 수 있는 곳이 늘어납니다.</p>
+    </div>
+
+    <div class="devbar">
+      <span class="lab">개발용 · 데모 상태</span>
+      <div class="seg" id="seg">
+        <button type="button" data-mode="day1" aria-pressed="false">Day 1</button>
+        <button type="button" data-mode="day52" aria-pressed="false">Day 52</button>
+        <button type="button" data-mode="mine" aria-pressed="true">내 기록</button>
+      </div>
+    </div>
+
+    <section class="journey">
+      <div class="strip" id="strip"></div>
+      <div class="cap">
+        <b>지금 <em id="jNow">방 안</em>까지</b>
+        <span class="shards"><i class="shard-dot"></i><span id="jShard">0</span></span>
+      </div>
+    </section>
+
+    <nav class="chips" id="chips"></nav>
+
+    <div class="stage">
+      <div class="scene" id="scene">
+        <canvas class="bg" id="cv" width="160" height="152"></canvas>
+        <div class="veil" id="veil"></div>
+        <div class="unlock-msg" id="unlockMsg">새로운 곳이 열렸어요</div>
+      </div>
+    </div>
+
+    <div class="spaceinfo">
+      <h2 id="spName">방 안</h2>
+      <p class="desc" id="spDesc">내가 가장 오래 머무는 곳</p>
+    </div>
+
+    <div class="lockcard" id="lockCard" hidden></div>
+
+    <div class="mascot">
+      <canvas id="mascotCv" width="40" height="38"></canvas>
+      <div class="say" id="mascotSay"></div>
+    </div>
+
+    <div class="sec-title"><span>이 공간의 기록</span><span id="recCount"></span></div>
+    <div class="list" id="list"></div>
+    <p class="hint">사진을 누르면 그날의 인증 기록을 볼 수 있어요.</p>
+  </section>
+
+  <!-- ============ 기록함 ============ -->
+  <section id="tab-drawer" hidden>
+    <div class="pad" style="padding-top:10px">
+      <h2 style="margin:0;font-size:21px;letter-spacing:-.5px">기록함</h2>
+      <p class="muted" style="margin:6px 0 0;font-size:13px;line-height:1.6">
+        지나온 미션을 모아 둔 곳이에요. 사진을 지워도 발자국은 남습니다.</p>
+    </div>
+    <div class="stats" id="drawerStats"></div>
+    <div class="filters" id="drawerFilters"></div>
+    <div class="grid" id="drawerGrid"></div>
+    <p class="hint" id="drawerHint"></p>
+  </section>
+
+  <!-- ============ 리포트 ============ -->
+  <section id="tab-report" hidden>
+    <div class="pad" style="padding-top:10px">
+      <h2 style="margin:0;font-size:21px;letter-spacing:-.5px">회복 리포트</h2>
+      <p class="muted" style="margin:6px 0 0;font-size:13px;line-height:1.6">
+        기관·미팅에 보여주기 위한 요약 화면입니다. 개인을 평가하는 점수는 넣지 않았습니다.</p>
+    </div>
+    <div id="reportBody"></div>
+  </section>
+
+  <nav class="tabbar" id="tabbar" role="tablist">
+    <button type="button" role="tab" data-tab="today" aria-selected="true"><span class="ic">🌱</span>오늘</button>
+    <button type="button" role="tab" data-tab="map" aria-selected="false"><span class="ic">🗺️</span>지도</button>
+    <button type="button" role="tab" data-tab="drawer" aria-selected="false"><span class="ic">🗂️</span>기록함</button>
+    <button type="button" role="tab" data-tab="report" aria-selected="false"><span class="ic">📄</span>리포트</button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 온보딩 -->
+<div class="onb" id="onb" hidden>
+  <div class="onb-in">
+    <div class="onb-top">
+      <button class="onb-skip" id="onbBack" type="button">뒤로</button>
+      <div class="onb-bar"><i id="onbBar" style="width:0%"></i></div>
+      <button class="onb-skip" id="onbSkip" type="button" hidden>건너뛰기</button>
+    </div>
+    <div class="onb-body" id="onbBody"></div>
+    <div class="onb-foot" id="onbFoot"></div>
+  </div>
+</div>
+
+<!-- 기록 상세 -->
+<div class="sheet-bg" id="detailBg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <h3 id="dTitle">기록</h3>
+    <p class="sub" id="dSub"></p>
+    <img class="bigphoto" id="dPhoto" alt="인증 사진">
+    <div class="nophoto" id="dNoPhoto" hidden>사진 없이 남긴 기록이에요</div>
+    <div style="margin-top:14px">
+      <div class="kv"><span class="k">날짜</span><span id="dDate"></span></div>
+      <div class="kv"><span class="k">공간</span><span id="dSpace"></span></div>
+      <div class="kv"><span class="k">회고</span><span id="dNote"></span></div>
+      <div class="kv"><span class="k">빛</span><span id="dShard"></span></div>
+    </div>
+    <div class="btnrow" id="dViewRow" style="margin-top:14px">
+      <button class="btn grow" id="dBlurBtn" type="button">흐리게 보기</button>
+      <button class="btn grow" id="dOrigBtn" type="button">원본 보기</button>
+    </div>
+    <p class="note-priv" id="dPrivNote"></p>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn warn" id="dDel" type="button">사진만 지우기</button>
+      <button class="btn solid grow" id="dClose" type="button">닫기</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="photoFile" accept="image/*" hidden>
+
+<script>
+
+/* 미션뱅크 v2 정본에서 추출 — 192 시드 · 27 카테고리 (기획/정본/mission-bank-v2.md) */
+var MISSION_SEEDS = [["오늘 일어난 시간 기록",1,"rhythm","RHYTHM-1A","room",0,"r","아침"],["알람 하나 맞춰두기",1,"rhythm","RHYTHM-1A","room",1,"a","자기전"],["기상 후 5분 안에 일단 앉기",2,"rhythm","RHYTHM-1A","room",0,"a","아침"],["취침 전 화면 끄는 시각 정하기",2,"rhythm","RHYTHM-1A","room",0,"r","자기전"],["3일 연속 기상시간 적어보기",3,"rhythm","RHYTHM-1A","room",0,"r",""],["몇 시쯤이 제일 개운했는지 표시해보기",1,"rhythm","RHYTHM-1A","room",0,"r",""],["지금 몇 시인지 적어두기",1,"rhythm","RHYTHM-1A","room",0,"r",""],["일어나서 이불 밖으로 발 내밀고 10초",1,"rhythm","RHYTHM-1A","room",0,"a","아침"],["오늘 밤 몇 시에 눕고 싶은지 정해두기",1,"rhythm","RHYTHM-1A","room",0,"r","저녁"],["미리 정해둔 시간에 일어나보기",4,"rhythm","RHYTHM-1A","room",0,"a","아침"],["정한 취침 시각에 맞춰 누워보기",4,"rhythm","RHYTHM-1A","room",0,"a","자기전"],["커튼 열기",1,"rhythm","RHYTHM-1B","room",1,"a","아침"],["창문 5분 열어 환기",2,"rhythm","RHYTHM-1B","room",1,"a",""],["아침 햇빛 3분 쬐기",2,"rhythm","RHYTHM-1B","room",0,"a","아침"],["불 켜고 방 밝히기",1,"rhythm","RHYTHM-1B","room",1,"a",""],["낮에 가장 밝은 곳으로 자리 옮기기",3,"rhythm","RHYTHM-1B","room",0,"a","낮"],["오늘 하늘 한 번 보고 색 적어두기",1,"rhythm","RHYTHM-1B","room",1,"r","낮"],["창가에서 바깥 소리 1분 들어보기",2,"rhythm","RHYTHM-1B","room",0,"a",""],["창가 화분에 빛 쬐어주기",2,"rhythm","RHYTHM-1B","room",1,"a","낮"],["해질 무렵 창밖 1분 바라보기",1,"rhythm","RHYTHM-1B","room",0,"a","저녁"],["오늘 먹은 것 하나 기록",1,"rhythm","RHYTHM-1C","home",1,"r",""],["정해둔 시간에 간단히 한 끼",3,"rhythm","RHYTHM-1C","home",1,"a",""],["배고픔 신호 한 번 알아차리기",1,"rhythm","RHYTHM-1C","home",0,"r",""],["내일 먹을 것 하나 정해두기",1,"rhythm","RHYTHM-1C","home",0,"r","저녁"],["냉장고나 찬장 열어 먹을 것 파악해두기",2,"rhythm","RHYTHM-1C","home",1,"a",""],["5분 요리 하나 해보기",4,"rhythm","RHYTHM-1C","home",1,"a",""],["오늘 첫 끼 시간 적어두기",1,"rhythm","RHYTHM-1C","home",0,"r",""],["과일이나 간단한 것 하나 챙겨 먹기",2,"rhythm","RHYTHM-1C","home",1,"a",""],["먹고 싶은 메뉴 하나 검색해두기",1,"rhythm","RHYTHM-1C","home",0,"e",""],["이틀 연속 비슷한 시간에 한 끼 시도해보기",5,"rhythm","RHYTHM-1C","home",0,"a",""],["물 한 컵 마시기",1,"rhythm","RHYTHM-1D","room",1,"a",""],["스트레칭 30초",1,"rhythm","RHYTHM-1D","room",0,"a",""],["창가에서 기지개 한 번",1,"rhythm","RHYTHM-1D","room",0,"a",""],["밥 먹기 전 손 씻기",1,"rhythm","RHYTHM-1D","room",0,"a",""],["오늘 물 마신 횟수만 세어보기",1,"rhythm","RHYTHM-1D","room",0,"r",""],["목을 좌우로 천천히 돌려보기",1,"rhythm","RHYTHM-1D","room",0,"a",""],["따뜻한 물 한 잔 천천히 마시기",2,"rhythm","RHYTHM-1D","room",1,"a",""],["오늘 할 아주 작은 일 하나 정하기",1,"rhythm","RHYTHM-1E","home",0,"r","아침"],["하루를 세 칸(아침/낮/밤)으로 나눠 한 칸에 뭐 했는지 적기",2,"rhythm","RHYTHM-1E","home",0,"r","저녁"],["알람 하나로 하루의 시작 신호 만들기",2,"rhythm","RHYTHM-1E","home",1,"a","아침"],["내일의 첫 행동 하나 정해두기",1,"rhythm","RHYTHM-1E","home",0,"r","자기전"],["오늘 한 일 하나를 완료로 표시해보기",1,"rhythm","RHYTHM-1E","home",0,"r","저녁"],["내일 하고 싶은 것 하나만 메모해두기",1,"rhythm","RHYTHM-1E","home",0,"r","자기전"],["오전·오후 하나씩 두 칸 계획 적어보기",3,"rhythm","RHYTHM-1E","home",0,"r","아침"],["아침에 적은 세 칸 계획을 저녁에 실제와 비교해보기",4,"rhythm","RHYTHM-1E","home",0,"r","저녁"],["어제 잔 시간 표시해보기",1,"rhythm","RHYTHM-1F","room",0,"r",""],["오늘 컨디션 이모지 하나 남기기",1,"rhythm","RHYTHM-1F","room",0,"r",""],["요즘 하루 흐름 한 줄로 적어보기",2,"rhythm","RHYTHM-1F","room",0,"r",""],["하루 중 잘 되는 시간대 하나 찾아보기",2,"rhythm","RHYTHM-1F","room",0,"r",""],["오늘 에너지가 제일 낮았던 때 표시해보기",1,"rhythm","RHYTHM-1F","room",0,"r",""],["밤에 잠이 안 올 때 주로 뭘 하는지 한 줄",2,"rhythm","RHYTHM-1F","room",0,"r",""],["지난 사흘 중 제일 나았던 하루 골라보기",3,"rhythm","RHYTHM-1F","room",0,"r",""],["세수 또는 양치 하나",1,"selfcare","SELF-2A","home",0,"a",""],["손과 얼굴 물로 씻기",1,"selfcare","SELF-2A","home",0,"a",""],["머리 빗기",1,"selfcare","SELF-2A","home",0,"a",""],["옷 갈아입기",2,"selfcare","SELF-2A","home",0,"a",""],["샤워하기",4,"selfcare","SELF-2A","home",0,"a",""],["오늘 상태에서 할 수 있는 몸단장 하나 고르기",1,"selfcare","SELF-2A","home",0,"r",""],["수건 새것으로 바꿔 걸어두기",1,"selfcare","SELF-2A","home",1,"a",""],["손톱 정리하기",2,"selfcare","SELF-2A","home",0,"a",""],["거울 보고 오늘 상태 한 줄 적기",1,"selfcare","SELF-2A","home",0,"r",""],["지금 기분 이모지 하나 남기기",1,"selfcare","SELF-2B","here",0,"r",""],["오늘 감정 한 단어로 적기",1,"selfcare","SELF-2B","here",0,"r",""],["감정 한 줄 적기",2,"selfcare","SELF-2B","here",0,"r",""],["오늘 그나마 괜찮았던 순간 하나 적기",2,"selfcare","SELF-2B","here",0,"r",""],["힘들었던 것 한 줄 적기 (쓸 수 있는 만큼만)",3,"selfcare","SELF-2B","here",0,"r",""],["이번 주에 감정 기록 3번 해보기",5,"selfcare","SELF-2B","here",0,"r",""],["지금 기분에 어울리는 곡 하나 고르기",1,"selfcare","SELF-2B","here",0,"e",""],["오늘 기분을 색 하나로 골라보기",1,"selfcare","SELF-2B","here",0,"r",""],["오늘 고마웠던 것 아주 작은 것 하나 적기",2,"selfcare","SELF-2B","here",0,"r",""],["감정이 올라왔던 순간의 몸 반응 한 줄 적기",4,"selfcare","SELF-2B","here",0,"r",""],["목·어깨 30초 스트레칭",1,"selfcare","SELF-2C","room",0,"a",""],["방 안 3분 걷기",2,"selfcare","SELF-2C","room",0,"a",""],["제자리에서 기지개 한 번",1,"selfcare","SELF-2C","room",0,"a",""],["10분 스트레칭",4,"selfcare","SELF-2C","room",0,"a",""],["좋아하는 종목 영상 보며 동작 하나 따라하기",3,"selfcare","SELF-2C","room",0,"a",""],["좋아하는 곡 틀어놓고 몸 가볍게 흔들기",2,"selfcare","SELF-2C","room",0,"a",""],["따라할 만한 스트레칭 영상 하나 찾아 저장해두기",1,"selfcare","SELF-2C","room",0,"e",""],["창문 열고 바깥 5분 바라보기",1,"selfcare","SELF-2D","front",1,"a",""],["현관문 앞까지 나가 공기 마시기",2,"selfcare","SELF-2D","front",0,"a",""],["집 앞이나 복도까지 나가보기",3,"selfcare","SELF-2D","front",0,"a",""],["근처 편의점이나 우체통까지 다녀오기",4,"selfcare","SELF-2D","town",1,"a",""],["동네 한 바퀴 또는 가고 싶던 곳 한 곳 다녀오기",5,"selfcare","SELF-2D","town",1,"a",""],["가보고 싶은 근처 장소 하나 찾아두기",1,"selfcare","SELF-2D","front",0,"e",""],["집 근처에서 산책하는 강아지 구경하고 오기",4,"selfcare","SELF-2D","town",0,"a",""],["동네 나무나 꽃 하나 보고 오기",4,"selfcare","SELF-2D","town",1,"a",""],["해질 무렵 집 앞에서 5분 있다 오기",3,"selfcare","SELF-2D","front",1,"a","저녁"],["나갈 때 신을 신발 현관에 꺼내두기",1,"selfcare","SELF-2D","front",1,"a",""],["눈앞 물건 하나 제자리에 두기",1,"selfcare","SELF-2E","home",0,"a",""],["쓰레기 하나 버리기",1,"selfcare","SELF-2E","home",0,"a",""],["책상 위 한 뼘만 정리하기",2,"selfcare","SELF-2E","home",1,"a",""],["이불 정리하기",2,"selfcare","SELF-2E","home",1,"a","아침"],["5분 타이머 맞추고 정리하기",3,"selfcare","SELF-2E","home",1,"a",""],["공간에 좋아하는 것 하나 놓아보기",2,"selfcare","SELF-2E","home",1,"a",""],["오늘 정리하고 싶은 자리 하나 사진 찍어두기",1,"selfcare","SELF-2E","home",1,"r",""],["컵이나 그릇 하나 씻어두기",1,"selfcare","SELF-2E","home",1,"a",""],["서랍 한 칸 정리하기",4,"selfcare","SELF-2E","home",1,"a",""],["좋아하는 음악 한 곡 듣기",1,"selfcare","SELF-2F","here",0,"e",""],["좋아하는 글이나 웹툰 한 편 보기",1,"selfcare","SELF-2F","here",0,"e",""],["보던 영상 중 제일 좋았던 것 한 줄 메모",1,"selfcare","SELF-2F","here",0,"r",""],["관심 있는 것 5분 찾아보기",2,"selfcare","SELF-2F","here",0,"e",""],["좋아하는 동물 영상 하나 보기",1,"selfcare","SELF-2F","here",0,"e",""],["먹고 싶은 것 하나 검색해보기",1,"selfcare","SELF-2F","here",0,"e",""],["오늘 게임에서 제일 좋았던 순간 한 줄 메모",1,"selfcare","SELF-2F","here",0,"r",""],["예전에 좋아했던 것 하나 다시 꺼내보기",2,"selfcare","SELF-2F","here",0,"e",""],["오늘 몰입했던 시간이 몇 분이었는지 적어보기",2,"selfcare","SELF-2F","here",0,"r",""],["오늘 나에게 해주고 싶은 말 한 줄 적기",2,"selfcare","SELF-2G","here",0,"r",""],["잘한 것 아주 작은 것 하나 적기",1,"selfcare","SELF-2G","here",0,"r",""],["'이 정도면 괜찮다' 한 번 소리 내 말해보기",1,"selfcare","SELF-2G","here",0,"a",""],["오늘 버틴 것 하나 인정해주기",1,"selfcare","SELF-2G","here",0,"r",""],["친구가 나였다면 뭐라고 말해줬을지 한 줄 적기",3,"selfcare","SELF-2G","here",0,"r",""],["안 읽은 메시지 하나 '읽음'만 해두기",1,"relation","REL-3A","here",0,"e",""],["관심 커뮤니티 글 1개 읽기",1,"relation","REL-3A","here",0,"e",""],["예전 대화 하나 스크롤해서 보기",1,"relation","REL-3A","here",0,"e",""],["단톡이나 피드 알림 하나만 열어보기",1,"relation","REL-3A","here",0,"e",""],["하는 게임의 커뮤니티 글 하나 읽기",1,"relation","REL-3A","here",0,"e",""],["글 하나 골라 댓글들 구경만 해보기",1,"relation","REL-3A","here",0,"e",""],["글에 이모지 하나 남기기",2,"relation","REL-3B","here",0,"a",""],["좋아요 하나 누르기",2,"relation","REL-3B","here",0,"a",""],["짧은 댓글 한 줄 남기기",2,"relation","REL-3B","here",0,"a",""],["투표 글에 투표 하나 해보기",2,"relation","REL-3B","here",0,"a",""],["마음에 든 글 저장이나 즐겨찾기 눌러두기",2,"relation","REL-3B","here",0,"a",""],["좋아하는 곡에 좋아요 하나 누르기",2,"relation","REL-3B","here",0,"a",""],["보내지 않아도 되는 안부 메시지 초안 써보기",2,"relation","REL-3C","here",0,"r",""],["저장해둔 초안 하나 실제로 보내보기",4,"relation","REL-3C","here",0,"a",""],["짧은 감사 메시지 한 줄 보내보기",3,"relation","REL-3C","here",0,"a",""],["받았던 메시지에 이모지로만 답해보기",2,"relation","REL-3C","here",0,"a",""],["답 못 하고 있던 메시지 하나 골라만 두기",2,"relation","REL-3C","here",0,"r",""],["'잘 지내?'류 메시지에 한 줄로 답해보기",4,"relation","REL-3C","here",0,"a",""],["관심사 오픈채팅이나 커뮤니티 눈팅해보기",2,"relation","REL-3D","here",0,"e",""],["온라인 커뮤니티에 질문 하나 올려보기",4,"relation","REL-3D","here",0,"a",""],["오픈채팅에서 한마디 해보기",4,"relation","REL-3D","here",0,"a",""],["커뮤니티 글에 공감 댓글 한 줄 남기기",3,"relation","REL-3D","here",0,"a",""],["식물 키우는 사람들 글 하나 읽고 반응 남기기",3,"relation","REL-3D","here",0,"a",""],["익명 커뮤니티에 오늘 한 일 한 줄 올려보기",3,"relation","REL-3D","here",0,"a",""],["편한 가족이나 지인 1명에게 한 줄 안부 보내기",4,"relation","REL-3E","city",0,"a",""],["짧은 통화 한 번 해보기",5,"relation","REL-3E","city",0,"a",""],["잘 지내냐는 메시지에 답해보기",4,"relation","REL-3E","city",0,"a",""],["연락해볼 만한 사람 한 명 떠올려 적어두기",4,"relation","REL-3E","city",0,"r",""],["그 사람에게 고마웠던 일 하나 적어보기",4,"relation","REL-3E","city",0,"r",""],["비슷한 경험을 쓴 커뮤니티 글 하나 읽어보기",2,"relation","REL-3F","city",0,"e",""],["자조 모임이나 온라인 모임 정보 하나 찾아보기",3,"relation","REL-3F","city",0,"e",""],["익명으로 한마디 남겨보기",4,"relation","REL-3F","city",0,"a",""],["공감 갔던 문장 하나 옮겨 적어두기",2,"relation","REL-3F","city",0,"r",""],["회복 경험담 하나 저장해두기",3,"relation","REL-3F","city",0,"e",""],["모임 하나 골라 참여 조건만 확인해보기",5,"relation","REL-3F","city",0,"e",""],["편의점 직원에게 눈인사나 '감사합니다' 한마디",3,"relation","REL-3G","town",0,"a",""],["계산할 때 '감사합니다' 한마디 해보기",3,"relation","REL-3G","town",0,"a",""],["엘리베이터나 복도에서 가볍게 목례해보기",3,"relation","REL-3G","town",0,"a",""],["자주 가는 곳 직원에게 짧은 인사 건네보기",4,"relation","REL-3G","town",0,"a",""],["주문할 때 원하는 것을 정확히 말해보기",4,"relation","REL-3G","town",0,"a",""],["관심 가는 직무나 분야 하나 골라보기",1,"social","SOC-4A","here",0,"r",""],["해봤던 것 중 그나마 나았던 것 하나 적기",1,"social","SOC-4A","here",0,"r",""],["내가 좋아하는 활동 3개 적어보기",2,"social","SOC-4A","here",0,"r",""],["오늘의 관심사와 연결되는 일 상상해서 한 줄 적기",2,"social","SOC-4A","here",0,"r",""],["게임과 관련된 직업 하나 구경해보기",1,"social","SOC-4A","here",0,"e",""],["'하기 싫지 않은 일' 하나 적어보기",1,"social","SOC-4A","here",0,"r",""],["관심 분야 정보 5분 검색해보기",2,"social","SOC-4B","here",0,"e",""],["관심 직무 하는 사람 영상 하나 보기",2,"social","SOC-4B","here",0,"e",""],["관심 분야 용어 하나 찾아보기",3,"social","SOC-4B","here",0,"e",""],["관심 분야 최근 소식 하나 읽어보기",2,"social","SOC-4B","here",0,"e",""],["그 일 하는 사람의 하루 일과 찾아보기",3,"social","SOC-4B","here",0,"e",""],["내 강점 한 줄 적어보기",3,"social","SOC-4C","here",0,"r",""],["이력서에 넣을 만한 한 문장 적어보기",4,"social","SOC-4C","here",0,"r",""],["해본 일 하나 적어보기",3,"social","SOC-4C","here",0,"r",""],["자기소개 한 줄 써보기",4,"social","SOC-4C","here",0,"r",""],["남이 나에게 해줬던 칭찬 하나 떠올려 적기",3,"social","SOC-4C","here",0,"r",""],["잘하고 싶은 것 한 가지 적어보기",3,"social","SOC-4C","here",0,"r",""],["자기소개를 세 문장으로 늘려보기",4,"social","SOC-4C","here",0,"r",""],["우리 지역 청년지원 정보 하나 확인해 저장하기",3,"social","SOC-4D","city",0,"e",""],["무료로 쓸 수 있는 공간(청년센터 등) 하나 찾아보기",3,"social","SOC-4D","city",0,"e",""],["관심 가는 프로그램 하나 저장해두기",4,"social","SOC-4D","city",0,"e",""],["청년 지원 사이트 하나 5분 둘러보기",3,"social","SOC-4D","city",0,"e",""],["신청해볼 만한 것 하나 조건만 확인해보기",4,"social","SOC-4D","city",0,"e",""],["받을 수 있는 지원금 하나 검색해보기",2,"social","SOC-4E","here",0,"e",""],["교통비나 밥값 지원 정보 찾아보기",3,"social","SOC-4E","here",0,"e",""],["관심 가는 알바 유형 하나 알아보기",3,"social","SOC-4E","here",0,"e",""],["무료 강의나 자원 하나 저장해두기",2,"social","SOC-4E","here",0,"e",""],["이번 달 크게 나간 돈 하나만 적어보기",2,"social","SOC-4E","here",0,"r",""],["청년 지원금 신청 방법 한 번 훑어보기",4,"social","SOC-4E","here",0,"e",""],["편의점이나 카페에서 직접 주문해보기",4,"social","SOC-4F","town",1,"a",""],["무인점포 이용해보기",3,"social","SOC-4F","town",0,"a",""],["가까운 곳에서 필요한 것 하나 사보기",4,"social","SOC-4F","town",1,"a",""],["키오스크로 주문해보기",3,"social","SOC-4F","town",0,"a",""],["사고 싶은 것 가격만 매장에서 확인하고 오기",3,"social","SOC-4F","town",0,"a",""],["카페에서 마실 것 하나 시켜 잠깐 앉아 있어 보기",5,"social","SOC-4F","town",1,"a",""],["관심 분야 5분 학습해보기",2,"social","SOC-4G","here",0,"e",""],["무료 강의 1강 들어보기",4,"social","SOC-4G","here",0,"e",""],["궁금한 것 하나 검색해서 정리해보기",3,"social","SOC-4G","here",0,"r",""],["관심 주제 글 한 쪽 읽어보기",2,"social","SOC-4G","here",0,"e",""],["배워보고 싶은 것 3개 적어보기",2,"social","SOC-4G","here",0,"r",""],["무료 강의 하나 찾아서 저장만 해두기",2,"social","SOC-4G","here",0,"e",""]];
+
+var REFLECT_Q = {"RHYTHM-1A":["오늘 리듬은 어제와 비교해 어땠어요?","몇 시쯤이 제일 개운했어요?"],"RHYTHM-1B":["빛을 쬐고 나니 몸이 어땠어요?","창밖에 뭐가 보였어요?"],"RHYTHM-1C":["다음에 또 한다면? (같은 것 또","다른 것 도전","이건 그만)","오늘 먹은 것 중 제일 나았던 건 뭐였어요?"],"RHYTHM-1D":["몸이 조금이라도 가벼워진 느낌이 있었어요?"],"RHYTHM-1E":["정해둔 것 하나가 하루에 도움이 됐어요?"],"RHYTHM-1F":["적어보니 내 하루에서 새로 보인 게 있었어요?"],"SELF-2A":["하고 나니 조금 달라진 게 있었어요?","어느 게 제일 할 만했어요?"],"SELF-2B":["적어보니 마음이 조금 정리됐어요?","이름 붙여보니 그 감정이 어떻게 느껴졌어요?"],"SELF-2C":["움직이고 나서 몸 느낌이 어땠어요?"],"SELF-2D":["밖에서 뭐가 제일 괜찮았어요? (바람","구경","그냥 움직인 것)","다음엔 어디까지 가볼 만하겠어요?"],"SELF-2E":["그 자리가 달라진 게 눈에 들어와요?"],"SELF-2F":["오늘 본 건 어느 쪽이었어요? (웃긴","잔잔한","배우는","몰입되는)"],"SELF-2G":["그 말을 스스로에게 해보니 어땠어요?"],"REL-3A":["보고 나서 마음이 어땠어요?"],"REL-3B":["흔적 하나 남겨보니 생각보다 어땠어요?"],"REL-3C":["쓰면서 어떤 마음이 들었어요?","보냈다면, 보내고 난 직후 기분은 어땠어요?"],"REL-3D":["온라인에서 한마디 해보니 어땠어요?"],"REL-3E":["연락하고 나서 어떤 느낌이 남았어요?"],"REL-3F":["비슷한 경험 글을 보니 어떤 생각이 들었어요?"],"REL-3G":["짧은 인사가 오간 순간, 어땠어요?"],"SOC-4A":["적다 보니 눈이 가는 쪽이 있었어요?"],"SOC-4B":["찾아본 것 중 기억에 남는 건 뭐예요?"],"SOC-4C":["내 강점을 글자로 보니 어때요?"],"SOC-4D":["쓸 만해 보이는 게 하나라도 있었어요?"],"SOC-4E":["알게 된 것 중 하나만 꼽으면 뭐예요?"],"SOC-4F":["해보니 생각보다 어땠어요?"],"SOC-4G":["오늘 알게 된 것 하나는 뭐예요?"]};
+
+/* 온보딩 설문 v1.5 (App-main/artifacts/jogak/src/data/onboarding-survey.json) */
+var ONB = {"intro":"몇 가지만 편하게 골라줘. 정답은 없어. 너를 알아가려는 거야.","q1":{"q":"요즘 밖에 나가는 건 어느 쪽에 가까워?","options":["방에서 거의 안 나가","방에선 나오지만 집 밖으론 안 나가","보통 집에 있고, 편의점 정도만 나가","보통 집에 있고, 내 취미 때문에만 나가","사람 만나러 가끔 나가","여가로 자주 나가","학교·직장에 주 3~4일 나가","학교·직장에 평일 매일 나가"]},"q2":{"q":"요즘 이런 상태가 된 가장 큰 이유는 뭐야?","options":["학업 중단·진학 실패","취업이 잘 안돼서","사람 관계가 힘들어서","몸이 불편하거나 아파서","임신·출산 때문에","그 외"]},"scale":["전혀 아니야","가끔 그래","자주 그래","완전 그래"],"status":[{"q":"요즘 밤낮이 바뀌었어?","areas":{"생활리듬":1}},{"q":"기상·식사 같은 일상생활이 불규칙해?","areas":{"생활리듬":1,"자기돌봄_신체":1}},{"q":"샤워나 목욕이 힘들어?","areas":{"자기돌봄_신체":1,"생활리듬":1}},{"q":"옷 갈아입거나 머리 만지는 데 신경이 잘 안 써져?","areas":{"자기돌봄_신체":1,"생활리듬":0.5}},{"q":"가족이 없을 때(혹은 잘 때)만 주로 움직여?","areas":{"은둔신호":1,"관계":0.5,"생활리듬":1}},{"q":"방에서 잘 안 나오거나, 아무도 못 들어오게 해?","areas":{"은둔신호":1,"생활리듬":1,"관계":0.5}},{"q":"가족이나 타인에게 과격한 말·행동이 나올 때가 있어?","areas":{"관계":1,"자기돌봄_정서":1}},{"q":"남의 사소한 말·행동에도 짜증이 나?","areas":{"관계":1,"자기돌봄_정서":1}},{"q":"다른 사람의 시선이나 말이 신경 쓰이고 불편해?","areas":{"관계":1,"자기돌봄_정서":1}},{"q":"다른 사람과 연락하거나 만나는 걸 되도록 피하게 돼?","areas":{"관계":1,"사회진입":0.4}},{"q":"학교나 직장(알바)에 안 가고 있어?","areas":{"사회진입":1,"생활리듬":0.5}},{"q":"편한 친구가 없다고 느껴?","areas":{"관계":1}},{"q":"요즘 많이 무기력해?","areas":{"생활리듬":1,"자기돌봄_정서":1}},{"q":"앞날을 생각하면 비관적인 느낌이 들어?","areas":{"은둔신호":1,"사회진입":1,"자기돌봄_정서":1}},{"q":"별 의미 없다 싶은 일(ex. SNS, 게임, 손씻기 등)에 시간을 많이 써?","areas":{"생활리듬":1,"사회진입":0.4,"자기돌봄_정서":1}}]};
+
+(function(){
+'use strict';
+/* ---------- 보상 규칙 (PRD §8) — 한 곳에만 존재 ---------- */
+var R = {
+  ATTEMPT: 2,          // 시도 (미션 수행)
+  NOTE:    1,          // 회고 한마디
+  REST:    1,          // 쉼터 (오늘은 쉬기)
+  PHOTO:   0,          // 사진 인증 — 의도적으로 0. 절대 올리지 말 것
+  UNLOCK_ATTEMPTS: 3   // 공간 개방: 현재 공간에서 시도 N회 (데모용 임시값)
+};
+
+/* ---------- 공간 정의 (PRD §6, 순서 고정) ---------- */
+var SPACES = [
+  { key: 'room',  name: '방 안',      desc: '내가 가장 오래 머무는 곳' },
+  { key: 'home',  name: '집 안',      desc: '방문을 열고 나서면 만나는 곳' },
+  { key: 'front', name: '집 앞',      desc: '건물 밖으로 나선 첫 걸음' },
+  { key: 'town',  name: '동네',       desc: '익숙한 길이 이어지는 곳' },
+  { key: 'city',  name: '더 넓은 곳', desc: '사람과 활동이 있는 곳' }
+];
+var SPACE_INDEX = {};
+SPACES.forEach(function (s, i) { SPACE_INDEX[s.key] = i; });
+
+var STORE_KEY = 'stepbystep_myspace_v1';
+
+/* =========================================================================
+ * 1. 픽셀 렌더링 엔진 (PRD §7)
+ *    논리 해상도 160 x 152 · 2:1 아이소메트릭 · 스캔라인 필
+ * ========================================================================= */
+var W = 160, H = 152, TW = 10, TH = 5, CX = 80, CY = 50;
+
+var imgData = null, u32 = null;
+
+function rgb(hex) {
+  var n = parseInt(hex.slice(1), 16);
+  var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (255 << 24) | (b << 16) | (g << 8) | r;   // little-endian ABGR
+}
+
+function T(gx, gy, z) {
+  return { x: CX + (gx - gy) * TW, y: CY + (gx + gy) * TH - (z || 0) };
+}
+
+function begin(bgHex) {
+  var c = rgb(bgHex);
+  for (var i = 0; i < u32.length; i++) u32[i] = c;
+}
+
+function plot(x, y, c) {
+  x = x | 0; y = y | 0;
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  u32[y * W + x] = c;
+}
+
+/* 볼록 다각형 스캔라인 필 — 모든 면을 이걸로 그린다 (PRD §7-2) */
+function poly(pts, hex) {
+  if (!hex || pts.length < 3) return;
+  var c = rgb(hex), i, y;
+  var minY = Infinity, maxY = -Infinity;
+  for (i = 0; i < pts.length; i++) {
+    if (pts[i].y < minY) minY = pts[i].y;
+    if (pts[i].y > maxY) maxY = pts[i].y;
+  }
+  minY = Math.max(0, Math.round(minY));
+  maxY = Math.min(H - 1, Math.round(maxY) - 1);
+  for (y = minY; y <= maxY; y++) {
+    var xs = [], yc = y + 0.5;
+    for (i = 0; i < pts.length; i++) {
+      var a = pts[i], b = pts[(i + 1) % pts.length];
+      if ((a.y <= yc && b.y > yc) || (b.y <= yc && a.y > yc)) {
+        xs.push(a.x + (yc - a.y) / (b.y - a.y) * (b.x - a.x));
+      }
+    }
+    if (xs.length < 2) continue;
+    xs.sort(function (p, q) { return p - q; });
+    for (i = 0; i + 1 < xs.length; i += 2) {
+      var x0 = Math.round(xs[i]), x1 = Math.round(xs[i + 1]);
+      for (var x = x0; x < x1; x++) plot(x, y, c);
+    }
+  }
+}
+
+function line(p0, p1, hex) {
+  var c = rgb(hex);
+  var x0 = Math.round(p0.x), y0 = Math.round(p0.y);
+  var x1 = Math.round(p1.x), y1 = Math.round(p1.y);
+  var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+  for (;;) {
+    plot(x0, y0, c);
+    if (x0 === x1 && y0 === y1) break;
+    var e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+
+/* 바닥/천장처럼 수평인 사각 면 */
+function ground(gx0, gy0, gx1, gy1, z, hex) {
+  poly([T(gx0, gy0, z), T(gx1, gy0, z), T(gx1, gy1, z), T(gx0, gy1, z)], hex);
+}
+/* gy 가 일정한 수직면 (앞-왼쪽을 향하는 면) */
+function panelEW(gy, gx0, gx1, z0, z1, hex) {
+  poly([T(gx0, gy, z1), T(gx1, gy, z1), T(gx1, gy, z0), T(gx0, gy, z0)], hex);
+}
+/* gx 가 일정한 수직면 (앞-오른쪽을 향하는 면) */
+function panelNS(gx, gy0, gy1, z0, z1, hex) {
+  poly([T(gx, gy0, z1), T(gx, gy1, z1), T(gx, gy1, z0), T(gx, gy0, z0)], hex);
+}
+
+/* 직육면체 (PRD §7-2-2) — 면마다 명암을 다르게 준다 */
+function prism(gx, gy, w, d, h, top, left, right, z0) {
+  z0 = z0 || 0;
+  panelEW(gy + d, gx, gx + w, z0, z0 + h, left);    // 앞-왼쪽면
+  panelNS(gx + w, gy, gy + d, z0, z0 + h, right);   // 앞-오른쪽면
+  ground(gx, gy, gx + w, gy + d, z0 + h, top);      // 윗면
+}
+
+/* 박공지붕 — 상승값 10 × 세로칸수 (PRD §7-3) */
+function gableRoof(gx, gy, w, d, top, side, z0) {
+  z0 = z0 || 0;
+  var rise = 10 * d;
+  var rL = T(gx, gy + d / 2, z0 + rise), rR = T(gx + w, gy + d / 2, z0 + rise);
+  var eFL = T(gx, gy, z0), eFR = T(gx + w, gy, z0);
+  var eNL = T(gx, gy + d, z0), eNR = T(gx + w, gy + d, z0);
+  poly([rL, rR, eFR, eFL], side);            // 뒤 경사면 (거의 가려짐)
+  poly([rR, eFR, eNR], side);                // 오른쪽 박공 삼각면 (보이는 쪽)
+  poly([rL, rR, eNR, eNL], top);             // 앞 경사면
+  line(rL, rR, side);                        // 용마루
+}
+
+/* ---------- 팔레트 (PRD §13) ---------- */
+var C = {
+  inWall1: '#DDD0BE', inWall2: '#E5D9C9', inWallDim: '#C9BAA6',
+  floor1: '#C9A57C', floor2: '#BC966B', floorBase: '#B98F66',
+  wood: '#B98F66', woodD: '#A17A52', woodDD: '#8B663F',
+  sage: '#8FA9A0', sageD: '#7B958C', sageDD: '#6A8279',
+  grass1: '#8DB56E', grass2: '#84AC65', grassD: '#74995A',
+  leaf1: '#9DBA92', leaf2: '#8AA97F', leaf3: '#79986E',
+  bark: '#6D4C41', barkD: '#4D2C21', barkR: '#5D3C31',
+  roof: '#B5806A', roofD: '#8F6350', roofDD: '#7A5443',
+  pole1: '#8A8078', pole2: '#5E564F', pole3: '#6E655D',
+  asph: '#77777E', asphD: '#6A6A70',
+  glow: '#E9A63C', glow2: '#F7D08A',
+  outline: '#3A3340', sky: '#BFD8E4',
+  glass: '#B5D8E8', glassD: '#96BDD1',
+  white: '#FFFDF9', white2: '#F1E9DC', white3: '#DFD4C3',
+  stone: '#A89886', stoneD: '#95856F', stone2: '#C2B29A',
+  metal: '#9AA3A8', metalD: '#848D92', metalDD: '#6F787D',
+  dark: '#5A524C', darkD: '#4A423C', darkDD: '#3A322C',
+  water: '#72A2C0', waterD: '#5E8CAA'
+};
+
+/* 나무 — 기둥 + 3단으로 좁아지는 수관 (한 덩어리 상자로 보이지 않게) */
+function tree(gx, gy, s, trunkH) {
+  s = s || 1; trunkH = trunkH || 7;
+  var cxg = gx + 0.17 * s, cyg = gy + 0.17 * s;
+  prism(cxg + 0.42 * s, cyg + 0.42 * s, 0.34 * s, 0.34 * s, trunkH + 2, C.bark, C.barkD, C.barkR);
+  prism(gx, gy, 1.32 * s, 1.32 * s, 4.4, C.leaf2, C.leaf3, C.leaf3, trunkH - 1);
+  prism(gx + 0.2 * s, gy + 0.2 * s, 0.92 * s, 0.92 * s, 3.6, C.leaf1, C.leaf3, C.leaf2, trunkH + 3.4);
+  prism(gx + 0.42 * s, gy + 0.42 * s, 0.48 * s, 0.48 * s, 3.0, '#AFC9A5', C.leaf2, C.leaf1, trunkH + 7);
+}
+
+/* 전봇대 — 콘크리트 회색 + 완목 2단 */
+function pole(gx, gy, h) {
+  prism(gx, gy, 0.26, 0.26, h, C.pole1, C.pole2, C.pole3);
+  panelEW(gy + 0.26, gx - 0.4, gx + 0.66, h - 4.5, h - 3.7, C.pole2);
+  panelEW(gy + 0.26, gx - 0.4, gx + 0.66, h - 8.5, h - 7.7, C.pole2);
+}
+
+/* 늘어진 전선 — 직선이 아니라 사인 곡선으로 축 처지게 (PRD §7-5) */
+function sagWire(a, b, sag) {
+  var prev = null;
+  for (var i = 0; i <= 32; i++) {
+    var t = i / 32;
+    var p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + Math.sin(Math.PI * t) * sag };
+    if (prev) line(prev, p, '#3A3340');
+    prev = p;
+  }
+}
+
+/* ---------- 장면 1. 방 안 ---------- */
+function sceneRoom() {
+  begin('#EFE7DA');
+  ground(0, 0, 7, 7, 0, C.floorBase);
+  for (var gx = 0; gx < 7; gx++)
+    for (var gy = 0; gy < 7; gy++)
+      ground(gx, gy, gx + 1, gy + 1, 0, (gx + gy) % 2 ? C.floor1 : C.floor2);
+
+  panelNS(0, 0, 7, 0, 40, C.inWall1);          // 왼쪽 벽
+  panelEW(0, 0, 7, 0, 40, C.inWall2);          // 오른쪽 벽
+  panelNS(0, 0, 7, 0, 2.5, C.inWallDim);       // 걸레받이
+  panelEW(0, 0, 7, 0, 2.5, C.inWallDim);
+
+  // 창문 (왼쪽 벽 앞쪽)
+  panelNS(0, 4.2, 6.3, 12, 31, C.outline);
+  panelNS(0, 4.35, 6.15, 13.2, 29.8, C.glass);
+  panelNS(0, 5.2, 5.3, 13.2, 29.8, C.outline);
+  panelNS(0, 4.35, 6.15, 21.0, 21.7, C.outline);
+  prism(0, 4.1, 0.4, 2.4, 1.2, C.white2, C.white3, C.white3, 11);
+
+  // 협탁 + 스탠드
+  prism(0.7, 0.7, 1.3, 1.3, 9, C.wood, C.woodDD, C.woodD);
+  prism(1.05, 1.05, 0.6, 0.6, 5, C.glow2, C.glow, C.glow, 9);
+  prism(0.95, 0.95, 0.8, 0.8, 1.2, C.white, C.white3, C.white2, 14);
+
+  // 침대
+  prism(0.7, 2.6, 2.6, 3.5, 4, C.woodD, C.woodDD, C.woodDD);
+  prism(0.85, 2.75, 2.3, 3.2, 3, C.white, C.white3, C.white2, 4);
+  prism(0.95, 2.85, 2.1, 1.0, 1.6, C.white, C.white2, C.white3, 7);
+  prism(0.85, 3.9, 2.3, 2.05, 2, C.sage, C.sageDD, C.sageD, 7);
+  prism(0.7, 2.4, 2.6, 0.2, 14, C.woodD, C.woodDD, C.woodDD);  // 헤드보드
+
+  // 창가 화분 (창턱 위)
+  prism(0.02, 4.9, 0.36, 0.7, 2.2, C.glow, C.woodDD, C.woodD, 12.2);
+  prism(-0.05, 4.8, 0.5, 0.9, 3.2, C.grass1, C.grassD, C.grass2, 14.4);
+
+  // 러그
+  ground(3.6, 2.2, 6.2, 4.8, 0.12, C.glow2);
+  ground(3.9, 2.5, 5.9, 4.5, 0.14, '#F2E3C4');
+
+  // 책상 + 노트북 + 의자
+  prism(4.3, 4.3, 2.3, 1.7, 8, C.wood, C.woodDD, C.woodD);
+  prism(5.0, 4.7, 0.9, 0.7, 0.4, C.metal, C.metalDD, C.metalD, 8);
+  panelEW(5.4, 5.0, 5.9, 8.4, 11.4, C.metalD);
+  prism(4.9, 5.9, 0.9, 0.9, 5, C.woodD, C.woodDD, C.woodDD);
+}
+
+/* ---------- 장면 2. 집 안 (거실 · 주방) ---------- */
+function sceneHome() {
+  begin('#EFE7DA');
+  ground(0, 0, 7, 7, 0, '#C6AE87');
+  for (var g = 0; g < 7; g++) {
+    ground(0, g, 7, g + 1, 0, g % 2 ? '#D3BB94' : '#CBB289');
+    ground(0, g + 0.94, 7, g + 1, 0.01, '#B99F79');
+  }
+
+  panelNS(0, 0, 7, 0, 42, C.inWall1);
+  panelEW(0, 0, 7, 0, 42, C.inWall2);
+  panelNS(0, 0, 7, 0, 2.5, C.inWallDim);
+  panelEW(0, 0, 7, 0, 2.5, C.inWallDim);
+
+  // 오른쪽 벽 창문 (거실 창)
+  panelEW(0, 4.5, 6.5, 13, 32, C.outline);
+  panelEW(0, 4.65, 6.35, 14.2, 30.8, C.glass);
+  panelEW(0, 5.42, 5.58, 14.2, 30.8, C.outline);
+  panelEW(0, 4.65, 6.35, 22.2, 22.9, C.outline);
+  prism(4.4, 0, 2.2, 0.4, 1.2, C.white2, C.white3, C.white3, 12);
+
+  // 주방 — 상부장 · 싱크대 (왼쪽 벽)
+  prism(0.02, 0.35, 0.85, 2.1, 11, C.white2, C.white3, C.white2, 21);
+  panelNS(0.87, 0.5, 1.35, 22, 30, C.white3);
+  panelNS(0.87, 1.45, 2.3, 22, 30, C.white3);
+  prism(0.02, 0.2, 1.15, 2.6, 9, C.white, C.white3, C.white2);
+  ground(0.1, 0.28, 1.15, 2.72, 9.2, '#D7CFC2');
+  ground(0.35, 1.5, 0.95, 2.4, 9.1, C.metal);           // 싱크볼
+  prism(0.5, 1.1, 0.1, 0.1, 3.2, C.metalD, C.metalDD, C.metalD, 9.2);
+  panelNS(1.17, 0.4, 1.2, 2.0, 8.0, C.white2);
+  panelNS(1.17, 1.35, 2.5, 2.0, 8.0, C.white2);
+
+  // 냉장고
+  prism(0.05, 3.05, 1.15, 1.25, 21, C.white, '#DCD4C6', '#E8E1D4');
+  panelNS(1.2, 3.15, 4.2, 1.5, 11.5, '#DCD4C6');
+  panelNS(1.2, 3.15, 4.2, 12.5, 20.0, '#DCD4C6');
+  panelNS(1.21, 4.0, 4.12, 8.0, 10.5, C.metalD);
+
+  // TV 장 + TV (뒷벽 쪽, 화면이 앞을 향하게)
+  prism(2.7, 0.15, 2.1, 0.7, 5, C.wood, C.woodDD, C.woodD);
+  panelEW(0.85, 2.95, 4.55, 5.6, 15.4, C.outline);
+  panelEW(0.85, 3.05, 4.45, 6.2, 14.8, '#5A6A72');
+  prism(3.55, 0.4, 0.35, 0.2, 0.6, C.darkD, C.darkDD, C.darkD, 5);
+
+  // 러그
+  ground(2.3, 2.5, 5.6, 5.5, 0.06, C.glow2);
+  ground(2.6, 2.8, 5.3, 5.2, 0.08, '#F2E3C4');
+
+  // 거실 탁자 + 컵
+  prism(3.3, 2.9, 1.5, 1.1, 4, C.wood, C.woodDD, C.woodD);
+  prism(3.7, 3.15, 0.35, 0.35, 1.6, C.white, C.white3, C.white2, 4);
+  prism(4.25, 3.3, 0.5, 0.35, 0.3, C.sage, C.sageDD, C.sageD, 4);
+
+  // 소파
+  prism(2.9, 4.5, 2.5, 1.15, 3, C.sage, C.sageDD, C.sageD);
+  prism(2.9, 4.5, 2.5, 0.3, 8, C.sageD, C.sageDD, C.sageDD, 3);   // 등받이
+  prism(2.9, 4.8, 0.3, 0.85, 3, C.sageD, C.sageDD, C.sageDD, 3);  // 팔걸이
+  prism(5.1, 4.8, 0.3, 0.85, 3, C.sageD, C.sageDD, C.sageDD, 3);
+  prism(3.35, 4.85, 0.6, 0.6, 1.4, C.glow2, C.glow, C.glow, 6);   // 쿠션
+
+  // 화분
+  prism(6.15, 5.3, 0.55, 0.55, 3, C.glow, C.woodDD, C.woodD);
+  prism(6.05, 5.2, 0.75, 0.75, 3.2, C.leaf1, C.leaf3, C.leaf2, 3);
+  prism(6.2, 5.35, 0.45, 0.45, 3.0, C.leaf2, C.leaf3, C.leaf1, 6.2);
+}
+
+/* ---------- 장면 3. 집 앞 ---------- */
+function sceneFront() {
+  begin(C.sky);
+  poly([T(0, 0, 0), T(7, 0, 0), T(7, 7, 0), T(0, 7, 0)], C.grassD);
+  for (var gx = 0; gx < 7; gx++)
+    for (var gy = 0; gy < 7; gy++)
+      ground(gx, gy, gx + 1, gy + 1, 0, (gx + gy) % 2 ? C.grass1 : C.grass2);
+
+  ground(0, 3.3, 7, 4.3, 0.1, C.stone2);                // 길
+  ground(0, 3.3, 7, 3.42, 0.12, '#B3A188');
+  ground(0, 4.18, 7, 4.3, 0.12, '#B3A188');
+
+  // 단독주택
+  prism(1.0, 0.2, 3.4, 2.0, 18, C.white2, C.white3, '#D2C6B3');
+  panelEW(2.2, 1.25, 1.95, 8.0, 13.5, C.outline);
+  panelEW(2.2, 1.33, 1.87, 8.5, 13.0, C.glass);
+  panelEW(2.2, 1.33, 1.87, 10.5, 11.0, C.outline);
+  panelNS(4.4, 0.7, 1.5, 8.0, 13.5, C.outline);
+  panelNS(4.4, 0.78, 1.42, 8.5, 13.0, C.glassD);
+  panelEW(2.2, 2.55, 3.35, 0, 9.5, C.outline);          // 현관문
+  panelEW(2.2, 2.65, 3.25, 0.4, 9.0, C.woodDD);
+  panelEW(2.2, 3.12, 3.2, 4.4, 5.0, C.glow);
+  gableRoof(0.8, 0.0, 3.8, 2.4, C.roof, C.roofDD, 18);
+  panelEW(2.4, 0.75, 4.65, 17.4, 18.6, C.roofD);        // 처마
+  prism(2.5, 2.2, 0.95, 0.55, 1.4, C.stone2, C.stoneD, C.stoneD);
+  prism(2.55, 2.35, 0.85, 0.4, 0.7, C.stone2, C.stoneD, C.stoneD);
+
+  // 화분 두 개
+  prism(0.45, 4.35, 0.55, 0.55, 2, C.glow, C.woodDD, C.woodD);
+  prism(0.38, 4.28, 0.7, 0.7, 2.4, C.leaf1, C.leaf3, C.leaf2, 2);
+  prism(0.5, 5.3, 0.45, 0.45, 1.6, '#C7841A', C.woodDD, C.woodD);
+  prism(0.44, 5.24, 0.58, 0.58, 2.0, C.leaf2, C.leaf3, C.leaf1, 1.6);
+
+  // 나무
+  tree(5.0, 0.75, 1.1, 11);
+
+  // 우편함
+  prism(5.65, 4.55, 0.22, 0.22, 7, C.dark, C.darkDD, C.darkD);
+  prism(5.35, 4.3, 0.85, 0.7, 1.8, C.glow, '#C7841A', '#D8952B', 7);
+}
+
+/* ---------- 장면 4. 동네 (한국 골목, PRD §7-5) ---------- */
+function sceneTown() {
+  begin(C.sky);
+
+  // 지면 밴드
+  ground(0, 0, 7, 1.7, 0, C.stone);         // 뒤쪽 인도
+  ground(0, 1.7, 7, 2.0, 0, '#B9AC98');     // 연석
+  ground(0, 2.0, 7, 5.0, 0, C.asph);        // 아스팔트
+  ground(0, 5.0, 7, 5.2, 0, '#B9AC98');     // 연석
+  ground(0, 5.2, 7, 6.4, 0, C.stone);       // 앞쪽 인도
+  ground(0, 6.4, 7, 7, 0, C.grass2);        // 화단
+
+  // 보도블록 격자
+  var i;
+  for (i = 0; i <= 7; i += 0.7) {
+    ground(i, 0, i + 0.05, 1.7, 0.02, C.stoneD);
+    ground(i, 5.2, i + 0.05, 6.4, 0.02, C.stoneD);
+  }
+  for (i = 0; i <= 1.7; i += 0.55) ground(0, i, 7, i + 0.05, 0.02, C.stoneD);
+  for (i = 5.2; i <= 6.4; i += 0.55) ground(0, i, 7, i + 0.05, 0.02, C.stoneD);
+
+  // 노란 중앙선 2줄
+  ground(0, 3.36, 7, 3.45, 0.04, C.glow);
+  ground(0, 3.60, 7, 3.69, 0.04, C.glow);
+
+  // 횡단보도
+  for (i = 1.15; i < 2.75; i += 0.55) ground(i, 2.05, i + 0.3, 4.95, 0.04, '#EDE6D6');
+
+  // 아파트 (창 격자 + 옥상 물탱크)
+  prism(0.62, 0.2, 2.4, 1.1, 40, C.metal, C.metalDD, C.metalD);
+  for (var z = 5; z <= 33; z += 5.6) {
+    panelEW(1.3, 0.80, 1.24, z, z + 3.2, C.glass);
+    panelEW(1.3, 1.47, 1.91, z, z + 3.2, C.glass);
+    panelEW(1.3, 2.14, 2.58, z, z + 3.2, C.glassD);
+    panelNS(3.02, 0.34, 0.72, z, z + 3.2, C.glassD);
+  }
+  prism(1.37, 0.45, 0.75, 0.55, 5, '#C6CDD2', '#9EA5AA', '#B2B9BE', 40);
+  prism(2.47, 0.4, 0.25, 0.25, 7, C.metalDD, C.darkDD, C.darkD, 40);
+
+  // 저층 상가 (1층 통유리 + 컬러 간판 띠)
+  prism(3.2, 0.3, 3.4, 1.1, 17, C.white2, C.white3, '#D2C6B3');
+  panelEW(1.4, 3.3, 6.5, 0.4, 7.4, C.glass);
+  panelEW(1.4, 4.55, 4.75, 0.4, 7.4, C.white3);
+  panelEW(1.4, 5.85, 6.05, 0.4, 7.4, C.white3);
+  panelEW(1.4, 3.3, 4.85, 8.0, 11.6, C.grass1);   // 초록 간판
+  panelEW(1.4, 4.95, 6.5, 8.0, 11.6, C.glow);     // 주황 간판
+  for (i = 3.5; i < 4.7; i += 0.32) panelEW(1.39, i, i + 0.18, 9.0, 10.6, '#EFF6EA');
+  for (i = 5.15; i < 6.35; i += 0.32) panelEW(1.39, i, i + 0.18, 9.0, 10.6, '#FFF3DC');
+  panelNS(6.6, 0.45, 1.35, 8.0, 11.6, '#C7841A');
+  for (z = 12.6; z <= 15; z += 2.4) panelEW(1.4, 3.4, 6.4, z, z + 1.6, C.white3);
+
+  // 파란 소형 트럭
+  prism(3.6, 2.35, 1.15, 0.85, 4.2, '#3E6EA2', '#22507F', '#2F5F91', 0.7);
+  prism(4.72, 2.35, 0.72, 0.85, 5.6, '#4A7BB0', '#2F5F91', '#3E6EA2', 0.7);
+  panelEW(3.2, 4.78, 5.38, 3.6, 5.4, C.glassD);
+  ground(3.6, 2.35, 5.45, 3.2, 0.7, C.darkD);
+  wheel(3.85, 3.2); wheel(5.15, 3.2);
+
+  // 가로수 (인도)
+  tree(4.3, 5.25, 0.75, 6);
+
+  // 전봇대 — 인도 바깥쪽, 교차로 한복판을 피해서
+  pole(0.42, 1.5, 32);
+  pole(6.32, 1.5, 32);
+
+  // 늘어진 전선 (사인 곡선으로 축 처지게)
+  sagWire(T(0.55, 1.76, 29.5), T(6.45, 1.76, 29.5), 6);
+  sagWire(T(0.55, 1.76, 25.5), T(6.45, 1.76, 25.5), 8);
+  sagWire(T(6.45, 1.76, 28.0), { x: 168, y: 120 }, 5);
+}
+
+function wheel(gx, gy) {
+  prism(gx, gy - 0.06, 0.34, 0.12, 1.5, C.darkDD, C.darkDD, C.darkD);
+}
+
+/* ---------- 장면 5. 더 넓은 곳 ---------- */
+function sceneCity() {
+  begin(C.sky);
+
+  // 원경 건물 (격자 뒤에 세워 앞의 공원에 가려지게)
+  var far = [[-0.7, 1.7, 28], [1.2, 1.5, 42], [2.9, 1.2, 24], [4.3, 1.3, 34], [5.8, 1.7, 30]];
+  far.forEach(function (b) {
+    prism(b[0], -1.1, b[1], 0.6, b[2], '#B4C2CA', '#8D9CA4', '#9DABB3');
+    for (var bz = 4; bz < b[2] - 3; bz += 5.5)
+      panelEW(-0.5, b[0] + 0.2, b[0] + b[1] - 0.2, bz, bz + 2.2, '#7E8D95');
+  });
+
+  // 잔디
+  poly([T(0, 0, 0), T(7, 0, 0), T(7, 7, 0), T(0, 7, 0)], C.grassD);
+  for (var gx = 0; gx < 7; gx++)
+    for (var gy = 0; gy < 7; gy++)
+      ground(gx, gy, gx + 1, gy + 1, 0, (gx + gy) % 2 ? C.grass1 : C.grass2);
+
+  // 산책로
+  ground(0, 5.5, 7, 6.5, 0.1, C.stone2);
+  ground(0, 5.5, 7, 5.6, 0.12, C.stoneD);
+  ground(0, 6.4, 7, 6.5, 0.12, C.stoneD);
+
+  // 연못
+  ground(1.9, 1.9, 5.1, 4.3, 0.06, C.stoneD);
+  ground(2.1, 2.1, 4.9, 4.1, 0.04, C.water);
+  ground(2.4, 2.4, 4.2, 3.2, 0.05, '#87B4CE');
+  ground(3.1, 3.4, 4.6, 3.9, 0.05, '#87B4CE');
+
+  // 분수
+  prism(3.05, 2.75, 0.8, 0.8, 1.4, '#D3CCC0', '#A9A196', '#BDB5A8', 0.04);
+  prism(3.25, 2.95, 0.4, 0.4, 0.8, '#C2E2EE', '#9CC6D6', '#AED4E2', 1.4);
+  prism(3.36, 3.06, 0.18, 0.18, 4.4, C.white, '#C8DDE6', '#DCEDF3', 2.2);
+  prism(3.28, 2.98, 0.34, 0.34, 0.5, C.white, '#C8DDE6', '#DCEDF3', 6.4);
+
+  // 나무
+  tree(0.4, 0.9, 0.9, 7);
+  tree(6.0, 0.6, 0.9, 7);
+
+  // 가로등
+  lamp(1.9, 5.05); lamp(6.1, 4.9);
+
+  // 벤치 두 개
+  bench(0.3, 3.4); bench(5.0, 5.6);
+}
+
+function lamp(gx, gy) {
+  prism(gx, gy, 0.2, 0.2, 13, C.pole1, C.pole2, C.pole3);
+  prism(gx - 0.09, gy - 0.09, 0.38, 0.38, 1.5, C.glow2, '#C7841A', C.glow, 13);
+  prism(gx - 0.13, gy - 0.13, 0.46, 0.46, 0.5, C.pole2, C.pole2, C.pole3, 14.5);
+}
+
+function bench(gx, gy) {
+  prism(gx, gy, 1.5, 0.5, 2.2, C.wood, C.woodDD, C.woodD);
+  panelEW(gy, gx, gx + 1.5, 2.2, 5.4, C.woodD);
+  prism(gx + 0.05, gy, 0.16, 0.5, 2.2, C.darkD, C.darkDD, C.darkD);
+  prism(gx + 1.29, gy, 0.16, 0.5, 2.2, C.darkD, C.darkDD, C.darkD);
+}
+
+var SCENES = { room: sceneRoom, home: sceneHome, front: sceneFront, town: sceneTown, city: sceneCity };
+
+/* =========================================================================
+ * 2. 사진 부착 좌표 (PRD §9 — 공간별 하드코딩)
+ *    wallL/wallR = 벽에 걸린 액자(중심점) · ground = 땅에 꽂힌 폴라로이드(밑동)
+ * ========================================================================= */
+var SLOTS = {
+  room:  [ { t: 'wallL', x: 60, y: 39 }, { t: 'wallR', x: 106, y: 41 }, { t: 'wallR', x: 134, y: 55 } ],
+  home:  [ { t: 'wallR', x: 92, y: 31 }, { t: 'wallR', x: 110, y: 43 }, { t: 'wallL', x: 28, y: 53 } ],
+  front: [ { t: 'ground', x: 40, y: 78 }, { t: 'ground', x: 60, y: 106 }, { t: 'ground', x: 114, y: 96 } ],
+  town:  [ { t: 'ground', x: 30, y: 82 }, { t: 'ground', x: 56, y: 106 }, { t: 'ground', x: 92, y: 114 } ],
+  city:  [ { t: 'ground', x: 30, y: 78 }, { t: 'ground', x: 58, y: 108 }, { t: 'ground', x: 112, y: 96 } ]
+};
+
+/* =========================================================================
+ * 3. 예시 장면 (코드로 그린 데모 사진, PRD §12)
+ * ========================================================================= */
+var DEMO_CACHE = {};
+function demoPhoto(kind) {
+  if (DEMO_CACHE[kind]) return DEMO_CACHE[kind];
+  var S = 3, cw = 80, ch = 60;
+  var cv = document.createElement('canvas');
+  cv.width = cw * S; cv.height = ch * S;
+  var x = cv.getContext('2d');
+  x.imageSmoothingEnabled = false;
+  function r(px, py, pw, ph, col) { x.fillStyle = col; x.fillRect(px * S, py * S, pw * S, ph * S); }
+
+  if (kind === 'curtain') {
+    r(0, 0, 80, 60, '#EFE7DA'); r(16, 6, 48, 38, '#3A3340'); r(18, 8, 44, 34, '#B5D8E8');
+    r(18, 8, 44, 12, '#CDE6F1'); r(52, 12, 7, 7, '#F7D08A'); r(39, 8, 2, 34, '#3A3340');
+    r(18, 24, 44, 2, '#3A3340'); r(6, 4, 12, 44, '#F7D08A'); r(62, 4, 12, 44, '#F7D08A');
+    r(6, 4, 4, 44, '#E9A63C'); r(70, 4, 4, 44, '#E9A63C'); r(0, 46, 80, 14, '#C9A57C');
+    r(0, 46, 80, 3, '#B98F66');
+  } else if (kind === 'water') {
+    r(0, 0, 80, 60, '#F4ECE1'); r(0, 40, 80, 20, '#C9A57C'); r(0, 40, 80, 3, '#B98F66');
+    r(29, 12, 22, 30, '#3A3340'); r(31, 14, 18, 26, '#E9F4F8'); r(31, 22, 18, 18, '#9FD3E4');
+    r(31, 22, 18, 3, '#C4E4F0'); r(33, 26, 4, 10, '#C4E4F0');
+  } else if (kind === 'plant') {
+    r(0, 0, 80, 60, '#EFE7DA'); r(8, 2, 40, 30, '#B5D8E8'); r(8, 2, 40, 30, '#B5D8E8');
+    r(6, 0, 44, 3, '#3A3340'); r(6, 30, 44, 3, '#3A3340'); r(0, 42, 80, 18, '#C9A57C');
+    r(30, 30, 20, 14, '#E9A63C'); r(32, 32, 16, 10, '#D8952B');
+    r(34, 18, 12, 14, '#8DB56E'); r(28, 22, 10, 10, '#93B08E'); r(42, 22, 10, 10, '#7FA761');
+    r(38, 12, 6, 10, '#8DB56E');
+  } else if (kind === 'blanket') {
+    r(0, 0, 80, 60, '#E5DACA'); r(0, 34, 80, 26, '#C9A57C'); r(6, 8, 68, 34, '#FFFDF9');
+    r(6, 8, 68, 4, '#DFD4C3'); r(10, 20, 60, 20, '#8FA9A0'); r(10, 20, 60, 4, '#A2BAB1');
+    r(14, 11, 26, 10, '#FFFDF9'); r(14, 11, 26, 3, '#EFE7DA'); r(6, 40, 68, 4, '#8B663F');
+  } else if (kind === 'desk') {
+    r(0, 0, 80, 60, '#F4ECE1'); r(0, 30, 80, 30, '#B98F66'); r(0, 30, 80, 3, '#C9A57C');
+    r(26, 12, 30, 20, '#3A3340'); r(28, 14, 26, 16, '#6F787D'); r(24, 30, 34, 3, '#4A423C');
+    r(60, 20, 12, 12, '#E9A63C'); r(70, 23, 4, 6, '#E9A63C'); r(8, 24, 12, 8, '#FFFDF9');
+    r(8, 24, 12, 2, '#8FA9A0');
+  } else if (kind === 'dishes') {
+    r(0, 0, 80, 60, '#EFE7DA'); r(0, 30, 80, 30, '#E4DACA'); r(0, 30, 80, 3, '#CFC3AE');
+    r(8, 34, 64, 22, '#C6CDD2'); r(12, 38, 56, 14, '#AAB3B8');
+    r(18, 20, 14, 16, '#FFFDF9'); r(18, 20, 14, 4, '#DFD4C3');
+    r(38, 24, 12, 12, '#B5D8E8'); r(54, 22, 12, 14, '#8FA9A0');
+    r(34, 8, 6, 22, '#9AA3A8'); r(34, 8, 16, 4, '#9AA3A8');
+  } else if (kind === 'shoes') {
+    r(0, 0, 80, 60, '#A89886'); r(0, 0, 80, 18, '#95856F'); r(10, 22, 60, 30, '#E9A63C');
+    r(14, 26, 52, 22, '#D8952B'); r(18, 28, 18, 18, '#FFFDF9'); r(44, 28, 18, 18, '#FFFDF9');
+    r(18, 42, 18, 4, '#3A3340'); r(44, 42, 18, 4, '#3A3340');
+    r(22, 30, 10, 4, '#DFD4C3'); r(48, 30, 10, 4, '#DFD4C3');
+  } else if (kind === 'sky') {
+    r(0, 0, 80, 60, '#BFD8E4'); r(0, 0, 80, 16, '#A8C9DA'); r(0, 30, 80, 10, '#D3E4EC');
+    r(10, 10, 20, 6, '#FFFDF9'); r(16, 6, 12, 6, '#FFFDF9'); r(50, 18, 18, 5, '#FFFDF9');
+    r(0, 44, 80, 16, '#8FA9A0'); r(0, 44, 80, 3, '#7B958C');
+    r(8, 36, 16, 8, '#C9A57C'); r(56, 34, 18, 10, '#B98F66');
+  } else if (kind === 'tree') {
+    r(0, 0, 80, 60, '#BFD8E4'); r(0, 42, 80, 18, '#8DB56E'); r(0, 42, 80, 3, '#7FA761');
+    r(36, 24, 8, 20, '#5D3C31'); r(38, 24, 3, 20, '#6D4C41');
+    r(22, 6, 36, 22, '#93B08E'); r(26, 2, 28, 10, '#A3C09C'); r(18, 14, 12, 12, '#7F9E7A');
+    r(50, 14, 12, 12, '#7F9E7A'); r(0, 52, 80, 8, '#7FA761');
+  } else {                                   /* store */
+    r(0, 0, 80, 60, '#77777E'); r(0, 40, 80, 20, '#6A6A70'); r(0, 40, 80, 2, '#B9AC98');
+    r(10, 6, 60, 34, '#FFFDF9'); r(10, 6, 60, 9, '#E9A63C'); r(10, 13, 60, 2, '#C7841A');
+    r(16, 8, 8, 5, '#FFF3DC'); r(28, 8, 8, 5, '#FFF3DC'); r(40, 8, 8, 5, '#FFF3DC');
+    r(14, 19, 24, 21, '#B5D8E8'); r(42, 19, 24, 21, '#B5D8E8'); r(38, 19, 4, 21, '#DFD4C3');
+    r(14, 34, 24, 6, '#96BDD1'); r(42, 34, 24, 6, '#96BDD1');
+  }
+
+  // "데모 예시" 표시
+  x.fillStyle = 'rgba(43,39,36,.72)';
+  x.fillRect(5 * S, 5 * S, 25 * S, 9 * S);
+  x.fillStyle = '#FFF8EC';
+  x.font = 'bold ' + (6 * S) + 'px "Malgun Gothic",sans-serif';
+  x.textBaseline = 'middle';
+  x.fillText('데모 예시', 8 * S, 9.8 * S);
+
+  DEMO_CACHE[kind] = cv.toDataURL('image/jpeg', 0.9);
+  return DEMO_CACHE[kind];
+}
+
+
+/* =========================================================================
+ * 4. 사진 처리 (PRD §10) — EXIF 제거 · 흐림은 저장 시점에 굽는다
+ * ========================================================================= */
+function encodePhoto(img, blur) {
+  var MAX = 720;
+  var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  var s = Math.min(1, MAX / Math.max(w, h));
+  w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s));
+  var cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  var x = cv.getContext('2d');
+  x.fillStyle = '#EDE4D6'; x.fillRect(0, 0, w, h);
+  if (blur) {
+    var rad = Math.max(7, Math.round(Math.min(w, h) / 26));
+    var ov = rad * 2;
+    x.filter = 'blur(' + rad + 'px)';
+    x.drawImage(img, -ov, -ov, w + ov * 2, h + ov * 2);
+    x.filter = 'none';
+  } else {
+    x.drawImage(img, 0, 0, w, h);
+  }
+  return cv.toDataURL('image/jpeg', 0.82);   // 재인코딩 = EXIF 제거
+}
+
+function loadImage(src) {
+  return new Promise(function (res, rej) {
+    var img = new Image();
+    img.onload = function () { res(img); };
+    img.onerror = function () { rej(new Error('image')); };
+    img.src = src;
+  });
+}
+
+function readFileAsDataURL(file) {
+  return new Promise(function (res, rej) {
+    var fr = new FileReader();
+    fr.onload = function () { res(fr.result); };
+    fr.onerror = function () { rej(new Error('file')); };
+    fr.readAsDataURL(file);
+  });
+}
+
+
+/* =========================================================================
+ * 5. 앱 상수 — 단계 · 영역 · 슬롯 · 자율성
+ * ========================================================================= */
+var APP_NAME = 'PIP';
+var APP_KO = '핍';
+var APP_FULL = 'Personalized Initiative Path';
+var APP_FULL_KO = '나에게 맞는 아주 작은 주도성을 쌓아가는 길';
+var MASCOT_NAME = '뱁달이';   // 뱁새 + 미션 배달
+var STORE_KEY = 'stepbystep_v2';
+
+/* 회복단계 → 허용 영역 · 타깃 영역 · 기본 밴드 (미션뱅크 v2 확정 규칙) */
+var STAGE_DEF = {
+  secluded:    { allow: ['rhythm'],                                     target: 'rhythm',   band: [1, 1] },
+  highly:      { allow: ['rhythm', 'selfcare'],                         target: 'selfcare', band: [1, 2] },
+  at_risk:     { allow: ['rhythm', 'selfcare', 'relation'],             target: 'relation', band: [2, 3] },
+  not_at_risk: { allow: ['rhythm', 'selfcare', 'relation', 'social'],   target: 'social',   band: [3, 4] }
+};
+
+/* 영역 라벨 — 카테고리 어휘·진단명 비노출, 소망형으로만 */
+var AREA_LABEL = {
+  rhythm: '하루의 리듬', selfcare: '나를 돌보는', relation: '누군가와 잇는', social: '바깥 세상으로 향하는'
+};
+
+var MOOD_OPTIONS = [
+  { v: 1, e: '🌧️', l: '많이 힘들어' },
+  { v: 2, e: '☁️', l: '별로야' },
+  { v: 3, e: '⛅', l: '보통' },
+  { v: 4, e: '☀️', l: '괜찮아' },
+  { v: 5, e: '🌈', l: '좋아' }
+];
+
+var SLOT_BADGE = { target: '오늘의 방향', note: '기록 미션', pleasure: '즐거움 미션', avoid: '천천히 다시', self: '내가 만든 미션' };
+var SLOT_REASON = {
+  target: '오늘 고른 방향과 이어지는 미션이에요.',
+  note: '적기만 해도 되는 미션이에요. 몸을 움직이지 않아도 괜찮아요.',
+  pleasure: '즐거움은 회복의 연료라서, 가볍게 좋아할 만한 걸 골랐어요.',
+  avoid: '요즘 미뤄뒀던 걸 아주 작게 쪼갰어요. 작게 다시 만나보면 돼요.',
+  self: '직접 계획한 미션이에요. 이게 회복의 가장 큰 신호예요.'
+};
+
+/* 자율성 사다리 A0~A4 — 권한 개방이지 요구가 아님. 강등 없음. 숫자 비노출 */
+var AUTONOMY = [
+  { n: '함께 시작하기', msg: '뱁달이가 오늘 미션 하나만 배달해요. 고르는 건 언제나 나예요.', open: '배달된 미션 중에서 고르기' },
+  { n: '내가 고르기', msg: '이제 미션을 다시 뽑거나 하나 더 담을 수 있어요. 원할 때만요.', open: '다른 미션 보기 · 하나 더 담기' },
+  { n: '문 열어보기', msg: '새로운 영역의 미션도 열 수 있게 됐어요. 궁금할 때 알려주세요.', open: '다른 영역 미션 열어보기' },
+  { n: '내가 만들기', msg: '이제 나만의 미션도 만들 수 있어요. 해보고 싶은 게 있다면 뭐든요.', open: '내가 만든 미션 남기기' },
+  { n: '내가 그리기', msg: '이번 주 미션을 스스로 그려볼 수 있어요. 뱁달이는 옆에서 응원할게요.', open: '주간 계획 직접 세우기' }
+];
+
+/* 미션뱅크 시드 → 객체 */
+var MISSIONS = MISSION_SEEDS.map(function (r, i) {
+  return { id: i, t: r[0], L: r[1], area: r[2], cat: r[3], place: r[4], photo: !!r[5], form: r[6], time: r[7] };
+});
+
+/* 예시 장면 순환 (카메라 없이 사진 인증 플로우를 시연하기 위한 것) */
+var demoKinds = ['curtain', 'water', 'plant', 'blanket', 'desk', 'dishes', 'sky', 'tree', 'store'];
+var demoIdx = 0;
+
+/* 내가 만든 미션 최소 가드 (A3+) */
+var SELF_BANNED = /구매|결제|주문|술|담배|밤새|자해/;
+var SELF_PARALLEL = /하고 |면서 |한 뒤|다음에 /;
+
+/* =========================================================================
+ * 6. 상태
+ * ========================================================================= */
+var state = null;
+var mapMode = 'mine';          // 'day1' | 'day52' | 'mine'
+var mapState = null;           // 지도가 실제로 그리는 상태 (데모 모드면 메모리 전용)
+var cur = 'room';
+var lastUnlockedKey = null;
+var tab = 'today';
+
+function freshState() {
+  return {
+    v: 2, onb: null, unlocked: 1, records: [], band: 1, autonomy: 0,
+    dateKey: '', mood: null, todayCount: 0, usedIds: [],
+    sig: { swaps: 0, adds: 0, selfProposals: 0, selfCompletions: 0 }
+  };
+}
+
+function load() {
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return freshState();
+    var s = JSON.parse(raw);
+    if (!s || !Array.isArray(s.records)) return freshState();
+    var f = freshState();
+    for (var k in f) if (!(k in s)) s[k] = f[k];
+    s.unlocked = Math.min(5, Math.max(1, s.unlocked || 1));
+    return s;
+  } catch (e) { return freshState(); }
+}
+
+function persist() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
+  catch (e) {
+    for (var i = 0; i < state.records.length; i++) {          // 용량 초과: 오래된 사진만 비움
+      if (!state.records[i].photo) continue;
+      state.records[i].photo = null; state.records[i].purged = true;
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; } catch (e2) {}
+    }
+    return false;
+  }
+}
+
+function todayKey() {
+  var d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+function todayLabel() {
+  var d = new Date();
+  return (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+}
+function rollDay() {
+  if (state.dateKey !== todayKey()) {
+    state.dateKey = todayKey(); state.mood = null; state.todayCount = 0;
+  }
+}
+
+/* ---------- 파생 ---------- */
+function stageOf() { return (state.onb && state.onb.stage) || 'secluded'; }
+function stageDef() { return STAGE_DEF[stageOf()]; }
+function frontier() { return SPACES[state.unlocked - 1].key; }
+function recordsOf(k) { return mapState.records.filter(function (r) { return r.space === k; }); }
+function attemptsOf(k) { return mapState.records.filter(function (r) { return r.space === k && !r.rest; }).length; }
+function totalShards() { return mapState.records.reduce(function (a, r) { return a + (r.shard || 0); }, 0); }
+function doneDays() {
+  var s = {};
+  state.records.forEach(function (r) { if (!r.rest) s[r.dateKey || r.dateLabel] = 1; });
+  return Object.keys(s).length;
+}
+
+/* =========================================================================
+ * 7. 미션 고르기 (미션뱅크 + 밴드 + 단계 게이트)
+ * ========================================================================= */
+function slotOf(m) {
+  if (m.cat === 'SELF-2F' || m.cat === 'SELF-2B' || m.cat === 'SELF-2G') return 'pleasure';
+  if (m.cat === 'SELF-2D' || m.area === 'relation' || m.area === 'social') return 'avoid';
+  if (m.form === 'r') return 'note';
+  return 'target';
+}
+
+/* 기분 ≤2인 날은 밴드를 깎지 않고 기본 토글만 '가볍게'로 (설계명세 §7-1 B안) */
+function effLevel(soft) {
+  var b = state.band + (soft ? -1 : 0);
+  var rng = stageDef().band;
+  return Math.max(1, Math.min(5, Math.max(rng[0] - 1, Math.min(rng[1] + 1, b))));
+}
+
+function pickCandidates(soft, widenArea) {
+  var lv = effLevel(soft);
+  var allow = stageDef().allow.slice();
+  if (widenArea) {                       // A2+ : 다른 영역 문 열어보기
+    var all = ['rhythm', 'selfcare', 'relation', 'social'];
+    var nx = all.filter(function (a) { return allow.indexOf(a) < 0; })[0];
+    if (nx) allow.push(nx);
+  }
+  var fr = frontier(), frIdx = state.unlocked - 1;
+  var used = {};
+  state.usedIds.slice(-24).forEach(function (i) { used[i] = 1; });
+
+  function pool(spread, ignoreUsed) {
+    return MISSIONS.filter(function (m) {
+      if (allow.indexOf(m.area) < 0) return false;
+      if (m.place !== 'here' && SPACE_INDEX[m.place] > frIdx) return false;
+      if (Math.abs(m.L - lv) > spread) return false;
+      if (!ignoreUsed && used[m.id]) return false;
+      return true;
+    });
+  }
+  var p = pool(1, false);
+  if (p.length < 6) p = pool(2, false);
+  if (p.length < 3) p = pool(2, true);
+
+  // 앞으로 나아가는 공간(프런티어)에 놓이는 미션을 앞에 둔다
+  var here = p.filter(function (m) { return m.place === 'here' || m.place === fr; });
+  var other = p.filter(function (m) { return m.place !== 'here' && m.place !== fr; });
+  shuffle(here); shuffle(other);
+  var ordered = here.concat(other);
+
+  // 슬롯도 카테고리도 겹치지 않게 미션 3장을 고른다
+  var out = [], seenCat = {};
+  ['target', 'note', 'pleasure', 'avoid'].forEach(function (sl) {
+    if (out.length >= 3) return;
+    for (var i = 0; i < ordered.length; i++) {
+      var m = ordered[i];
+      if (out.indexOf(m) >= 0 || seenCat[m.cat]) continue;
+      if (slotOf(m) === sl) { out.push(m); seenCat[m.cat] = 1; return; }
+    }
+  });
+  for (var i = 0; out.length < 3 && i < ordered.length; i++) {
+    if (out.indexOf(ordered[i]) >= 0 || seenCat[ordered[i].cat]) continue;
+    out.push(ordered[i]); seenCat[ordered[i].cat] = 1;
+  }
+  for (var i = 0; out.length < 3 && i < ordered.length; i++)
+    if (out.indexOf(ordered[i]) < 0) out.push(ordered[i]);
+  return out.slice(0, 3);
+}
+
+function shuffle(a) {
+  for (var i = a.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0; var t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+
+function reflectQuestion(m) {
+  var qs = REFLECT_Q[m.cat];
+  if (!qs || !qs.length) return '해보니 어땠어요? 아주 짧게라도 좋아요.';
+  return qs[0];
+}
+
+/* =========================================================================
+ * 8. 오늘 — 흐름
+ * ========================================================================= */
+var today = null;
+function resetToday(step) {
+  today = { step: step || 'checkin', cands: [], chosen: null, soft: false, p: 0, m: 0, note: '', photo: null, photoDemo: false, blur: false, rec: null, opened: null, selfText: '' };
+}
+
+var $ = function (id) { return document.getElementById(id); };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+function shortDate(label) {
+  var m = String(label).match(/(\d+)\s*월\s*(\d+)/);
+  return m ? m[1] + '.' + m[2] : String(label).slice(0, 5);
+}
+
+function bubble(text) {
+  return '<div class="onb-hi" style="margin:0 18px"><canvas class="mas" width="40" height="38"></canvas>' +
+    '<div class="bubble">' + text + '</div></div>';
+}
+
+function renderToday() {
+  rollDay();
+  var b = $('todayBody');
+  var A = state.autonomy;
+
+  if (today.step === 'checkin') {
+    b.innerHTML =
+      '<div class="pad" style="padding-top:10px"><h2 style="margin:0;font-size:21px;letter-spacing:-.5px">오늘</h2>' +
+      '<p class="muted" style="margin:6px 0 0;font-size:13px">' + esc(todayLabel()) + ' · 오늘 하나만 남겨도 충분해요.</p></div>' +
+      bubble('오늘 기분은 어때? 무엇을 고르든 미션은 똑같이 쌓여.') +
+      '<div class="pad"><div class="mood" id="moodRow">' +
+      MOOD_OPTIONS.map(function (o) {
+        return '<button type="button" data-v="' + o.v + '" aria-pressed="false"><span class="e">' + o.e + '</span><span class="l">' + o.l + '</span></button>';
+      }).join('') +
+      '</div><p class="muted" style="font-size:11.5px;margin:10px 0 0">기분은 미션의 개수나 보상을 바꾸지 않아요. 오늘 얼마나 가볍게 갈지만 정해요.</p></div>';
+    $('moodRow').addEventListener('click', function (e) {
+      var t = e.target.closest('button[data-v]'); if (!t) return;
+      state.mood = +t.dataset.v; persist();
+      today.soft = state.mood <= 2;
+      today.cands = pickCandidates(today.soft, false);
+      today.step = 'pick'; renderToday();
+    });
+  }
+
+  else if (today.step === 'pick') {
+    var softLine = today.soft
+      ? '오늘은 가볍게 갈 수 있는 것들로 골라왔어. 이것도 무겁다면 쉬어도 돼.'
+      : '오늘 배달 온 미션이야. 마음이 가는 걸로 하나만 골라줘.';
+    b.innerHTML =
+      '<div class="pad" style="padding-top:10px"><h2 style="margin:0;font-size:21px;letter-spacing:-.5px">오늘의 미션</h2>' +
+      '<p class="muted" style="margin:6px 0 0;font-size:13px">' + esc(todayLabel()) +
+      (state.todayCount ? ' · 오늘 ' + state.todayCount + '개 남겼어요' : '') + '</p></div>' +
+      bubble(softLine) +
+      '<div class="pad"><div class="pieces" id="pieceList">' +
+      today.cands.map(function (m, i) {
+        var sl = slotOf(m);
+        return '<button class="piece" type="button" data-i="' + i + '">' +
+          '<span class="top"><span class="slot ' + sl + '">' + SLOT_BADGE[sl] + '</span></span>' +
+          '<h3>' + esc(m.t) + '</h3>' +
+          '<p class="why">' + SLOT_REASON[sl] + '</p>' +
+          '<span class="foot">' + (m.photo ? '<span class="tagphoto">📷 사진으로 남길 수 있어요</span>' : '') +
+          '<span class="muted" style="font-size:11.5px">' + AREA_LABEL[m.area] + ' 미션</span></span>' +
+          '</button>';
+      }).join('') +
+      '</div><div class="btnrow" style="margin-top:12px">' +
+      (A >= 1 ? '<button class="btn grow" id="reroll" type="button">다른 미션 볼래요</button>' : '') +
+      (A >= 2 ? '<button class="btn grow" id="widen" type="button">다른 영역도 열어보기</button>' : '') +
+      '</div>' +
+      (A >= 3 ? '<label class="check" style="margin-top:14px"><input type="checkbox" id="selfOn"><span>내가 만든 미션으로 남길래요</span></label>' +
+        '<div id="selfBox" hidden style="margin-top:8px"><input type="text" id="selfText" maxlength="40" placeholder="예: 베란다에서 커피 한 잔"><button class="btn solid" id="selfGo" type="button" style="margin-top:8px;width:100%">이 미션으로 하기</button></div>' : '') +
+      '<div class="btnrow" style="margin-top:18px"><button class="btn grow" id="restBtn" type="button">오늘은 쉬어갈래요</button></div>' +
+      '<p class="muted" style="font-size:11.5px;margin:10px 0 0">쉬는 날도 지도에 쉼터로 남고 빛을 받아요. 빈칸이 되지 않습니다.</p></div>';
+
+    $('pieceList').addEventListener('click', function (e) {
+      var t = e.target.closest('button[data-i]'); if (!t) return;
+      var i = +t.dataset.i;
+      if (i > 0) state.sig.swaps++;
+      today.chosen = today.cands[i]; today.step = 'chosen'; persist(); renderToday();
+    });
+    if ($('reroll')) $('reroll').addEventListener('click', function () {
+      today.cands.forEach(function (m) { state.usedIds.push(m.id); });
+      state.sig.swaps++; persist();
+      today.cands = pickCandidates(today.soft, false); renderToday();
+    });
+    if ($('widen')) $('widen').addEventListener('click', function () {
+      today.cands = pickCandidates(today.soft, true); toast('한 칸 너머의 미션도 섞었어요.'); renderToday();
+    });
+    if ($('selfOn')) {
+      $('selfOn').addEventListener('change', function () { $('selfBox').hidden = !this.checked; });
+      $('selfGo').addEventListener('click', function () {
+        var v = $('selfText').value.trim();
+        var chk = validateSelf(v);
+        if (!chk.ok) { toast(chk.reason); return; }
+        state.sig.selfProposals++;
+        today.chosen = { id: -1, t: v, L: state.band, area: stageDef().target, cat: 'SELF', place: 'here', photo: true, form: 'a', self: true };
+        today.step = 'chosen'; persist(); renderToday();
+      });
+    }
+    $('restBtn').addEventListener('click', function () { commitRest(); });
+  }
+
+  else if (today.step === 'chosen') {
+    var m = today.chosen, sl = m.self ? 'self' : slotOf(m);
+    b.innerHTML =
+      '<div class="pad" style="padding-top:10px"><h2 style="margin:0;font-size:21px;letter-spacing:-.5px">고른 미션</h2></div>' +
+      '<div class="chosen"><span class="slot">' + SLOT_BADGE[sl] + '</span><h2>' + esc(m.t) + '</h2>' +
+      '<p class="why">' + SLOT_REASON[sl] + '</p>' +
+      (m.photo ? '<p class="why" style="margin-top:6px"><span class="tagphoto">📷 사진으로 남길 수 있어요</span></p>' : '') +
+      '<div class="acts">' +
+      '<button class="btn solid" id="didIt" type="button">해봤어요</button>' +
+      (m.self ? '' : '<button class="btn" id="smaller" type="button">더 작게 바꾸기</button>') +
+      '<button class="btn" id="backPick" type="button">다른 미션 볼래요</button>' +
+      '<button class="btn" id="restBtn2" type="button">오늘은 쉬어갈래요</button>' +
+      '</div></div>' +
+      '<p class="hint">아직 안 해도 괜찮아요. 이 화면은 재촉하지 않습니다.</p>';
+    $('didIt').addEventListener('click', function () { today.step = 'reflect'; renderToday(); });
+    if ($('smaller')) $('smaller').addEventListener('click', function () {
+      var lower = MISSIONS.filter(function (x) {
+        return x.cat === m.cat && x.L < m.L;
+      }).sort(function (a, b2) { return b2.L - a.L; })[0];
+      if (!lower) {
+        today.soft = true; today.cands = pickCandidates(true, false); today.step = 'pick'; renderToday();
+        toast('더 가벼운 미션으로 다시 골라왔어요.'); return;
+      }
+      today.chosen = lower; renderToday(); toast('더 작게 바꿨어요.');
+    });
+    $('backPick').addEventListener('click', function () {
+      state.sig.swaps++; persist();
+      today.cands = pickCandidates(today.soft, false); today.step = 'pick'; renderToday();
+    });
+    $('restBtn2').addEventListener('click', function () { commitRest(); });
+  }
+
+  else if (today.step === 'reflect') {
+    b.innerHTML =
+      '<div class="pad" style="padding-top:10px"><h2 style="margin:0;font-size:21px;letter-spacing:-.5px">회고 한마디</h2>' +
+      '<p class="muted" style="margin:6px 0 0;font-size:13px">' + esc(today.chosen.t) + '</p></div>' +
+      '<div class="pad" style="margin-top:16px">' +
+      '<div class="card" style="padding:15px 16px"><b style="font-size:14px">즐거움</b>' +
+      '<p class="muted" style="margin:3px 0 0;font-size:12.5px">이 활동을 하며 얼마나 즐거웠나요?</p>' +
+      '<div class="scale" id="scaleP">' + [1, 2, 3, 4, 5].map(function (v) {
+        return '<button type="button" data-v="' + v + '" aria-pressed="false">' + v + '</button>';
+      }).join('') + '</div><div class="scale-hint"><span>전혀</span><span>아주 많이</span></div></div>' +
+      '<div class="card" style="padding:15px 16px;margin-top:10px"><b style="font-size:14px">뿌듯함</b>' +
+      '<p class="muted" style="margin:3px 0 0;font-size:12.5px">해냈다는 느낌은 얼마나 드나요?</p>' +
+      '<div class="scale" id="scaleM">' + [1, 2, 3, 4, 5].map(function (v) {
+        return '<button type="button" data-v="' + v + '" aria-pressed="false">' + v + '</button>';
+      }).join('') + '</div><div class="scale-hint"><span>전혀</span><span>아주 많이</span></div></div>' +
+      '<div class="card" style="padding:15px 16px;margin-top:10px"><b style="font-size:14px">한마디</b>' +
+      '<p class="muted" style="margin:3px 0 6px;font-size:12.5px">' + esc(reflectQuestion(today.chosen)) + '</p>' +
+      '<textarea id="reNote" maxlength="60" placeholder="한 단어도 좋고, 적지 않아도 괜찮아요."></textarea>' +
+      '<p class="muted" style="font-size:11.5px;margin:8px 0 0">한마디를 남기면 빛 +' + R.NOTE + '. 안 남겨도 시도는 그대로예요.</p></div>' +
+      '<div class="btnrow" style="margin-top:14px"><button class="btn solid grow" id="toPhoto" type="button">다음</button></div></div>';
+    var bindScale = function (id, key) {
+      $(id).addEventListener('click', function (e) {
+        var t = e.target.closest('button[data-v]'); if (!t) return;
+        today[key] = +t.dataset.v;
+        Array.prototype.slice.call($(id).children).forEach(function (c) {
+          c.setAttribute('aria-pressed', String(+c.dataset.v === today[key]));
+        });
+      });
+    };
+    bindScale('scaleP', 'p'); bindScale('scaleM', 'm');
+    $('toPhoto').addEventListener('click', function () {
+      today.note = $('reNote').value.trim(); today.step = 'photo'; renderToday();
+    });
+  }
+
+  else if (today.step === 'photo') {
+    b.innerHTML =
+      '<div class="pad" style="padding-top:10px"><h2 style="margin:0;font-size:21px;letter-spacing:-.5px">사진 남기기</h2>' +
+      '<p class="muted" style="margin:6px 0 0;font-size:13px">선택이에요. 사진이 있든 없든 빛은 같습니다.</p></div>' +
+      bubble('사진은 인증이 아니라 그날의 질감이야. 남기고 싶을 때만 남겨.') +
+      '<div class="pad"><div class="card" style="padding:15px 16px">' +
+      '<div class="photo-pick" style="margin-top:0">' +
+      '<button class="btn" id="pPick" type="button">사진 고르기</button>' +
+      '<button class="btn" id="pDemo" type="button">예시 장면</button>' +
+      '<img class="thumbprev' + (today.photo ? ' on' : '') + '" id="pPrev" ' + (today.photo ? 'src="' + today.photo + '"' : '') + ' alt="">' +
+      '<button class="btn" id="pClear" type="button"' + (today.photo ? '' : ' hidden') + '>빼기</button></div>' +
+      '<label class="check"><input type="checkbox" id="pBlur"' + (today.blur ? ' checked' : '') + '><span>흐리게 보관 — 저장할 때 흐려지고 원본은 남지 않아요</span></label>' +
+      '<p class="note-priv">저장 전에 캔버스 재인코딩으로 위치·기기 정보(EXIF)를 지웁니다. 사진은 이 기기 안에만 보관되고 어디로도 전송되지 않습니다.</p>' +
+      '</div>' +
+      '<div class="btnrow" style="margin-top:14px">' +
+      '<button class="btn grow" id="pSkip" type="button">사진 없이 남기기</button>' +
+      '<button class="btn solid grow" id="pSave" type="button">기록 남기기</button></div></div>';
+    $('pPick').addEventListener('click', function () { openFilePicker(); });
+    $('pDemo').addEventListener('click', function () {
+      var kind = demoKinds[demoIdx % demoKinds.length]; demoIdx++;
+      today.photo = demoPhoto(kind); today.photoDemo = true;
+      $('pPrev').src = today.photo; $('pPrev').classList.add('on'); $('pClear').hidden = false;
+    });
+    $('pClear').addEventListener('click', function () {
+      today.photo = null; today.photoDemo = false;
+      $('pPrev').removeAttribute('src'); $('pPrev').classList.remove('on'); $('pClear').hidden = true;
+    });
+    $('pBlur').addEventListener('change', function () { today.blur = this.checked; });
+    $('pSkip').addEventListener('click', function () { today.photo = null; commitAttempt(); });
+    $('pSave').addEventListener('click', function () { commitAttempt(); });
+  }
+
+  else if (today.step === 'done') {
+    var rec = today.rec, sp = SPACES[SPACE_INDEX[rec.space]];
+    var lines = [];
+    if (rec.rest) lines.push(['쉼터', '+' + R.REST]); else lines.push(['시도', '+' + R.ATTEMPT]);
+    if (rec.note) lines.push(['회고 한마디', '+' + R.NOTE]);
+    lines.push(['사진', '+' + R.PHOTO]);
+    lines.push(['오늘 받은 빛', '+' + rec.shard]);
+    b.innerHTML =
+      '<div class="reward"><div class="big">+' + rec.shard + '<span>빛</span></div>' +
+      '<h2>' + esc(rec.title) + '</h2>' +
+      '<p>' + esc(sp.name) + '에 오늘의 기록이 놓였어요.' + (rec.photo ? '<br>남긴 장면이 그 공간을 밝혀요.' : '') + '</p>' +
+      (rec.photo ? '<img class="thumb" src="' + rec.photo + '" alt="">' : '') +
+      '<div class="lines">' + lines.map(function (l) {
+        return '<div><span>' + l[0] + '</span><span>' + l[1] + '</span></div>';
+      }).join('') + '</div></div>' +
+      (today.opened
+        ? '<div class="pad" style="margin-top:12px"><div class="card" style="padding:16px;border-color:var(--glow2);background:linear-gradient(160deg,#FDF6E7,#FFFDF9)">' +
+          '<b style="font-size:15px">새로운 곳이 열렸어요</b><p class="muted" style="margin:6px 0 0;font-size:13px">' +
+          esc(SPACES[SPACE_INDEX[today.opened]].name) + ' — ' + esc(SPACES[SPACE_INDEX[today.opened]].desc) + '</p></div></div>'
+        : '') +
+      (today.levelMsg
+        ? '<div class="pad" style="margin-top:10px">' + bubble(esc(today.levelMsg)).replace(' style="margin:0 18px"', '') + '</div>'
+        : '') +
+      '<div class="pad" style="margin-top:14px"><div class="btnrow">' +
+      '<button class="btn solid grow" id="goMap" type="button">지도에서 보기</button>' +
+      '<button class="btn grow" id="more" type="button">하나 더 담기</button>' +
+      '</div>' +
+      '<p class="muted" style="font-size:11.5px;margin:10px 0 0">오늘은 여기까지도 충분해요. 더 담는 건 원할 때만요.</p>' +
+      '</div>';
+    $('goMap').addEventListener('click', function () { setTab('map'); });
+    if ($('more')) $('more').addEventListener('click', function () {
+      state.sig.adds++; persist();
+      today.cands = pickCandidates(today.soft, false);
+      today.chosen = null; today.photo = null; today.blur = false; today.note = ''; today.p = 0; today.m = 0;
+      today.step = 'pick'; renderToday();
+    });
+    drawMascotInto();
+  }
+
+  drawMascotInto();
+}
+
+function validateSelf(t) {
+  if (t.length < 2) return { ok: false, reason: '조금만 더 적어주세요.' };
+  if (SELF_BANNED.test(t)) return { ok: false, reason: '이 미션은 지금 담기 어려워요. 다른 걸로 해볼까요?' };
+  if (SELF_PARALLEL.test(t)) return { ok: false, reason: '한 번에 하나만 담아요. 둘 중 하나만 골라줄래요?' };
+  return { ok: true };
+}
+
+function openFilePicker() {
+  var el = $('photoFile');
+  el.onchange = function (e) {
+    var f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    readFileAsDataURL(f).then(function (src) {
+      today.photo = src; today.photoDemo = false;
+      if ($('pPrev')) { $('pPrev').src = src; $('pPrev').classList.add('on'); $('pClear').hidden = false; }
+    }).catch(function () { toast('사진을 불러오지 못했어요.'); });
+  };
+  el.click();
+}
+
+/* ---------- 기록 생성 ---------- */
+function placeOf(m) { return m.place === 'here' ? frontier() : m.place; }
+
+function finalize(rec) {
+  state.records.push(rec);
+  state.todayCount++;
+  if (today.chosen && today.chosen.id >= 0) state.usedIds.push(today.chosen.id);
+  if (today.chosen && today.chosen.self && !rec.rest) state.sig.selfCompletions++;
+
+  // 난이도 밴드: 회고 결과로 조용히 ±1 (숫자는 화면에 노출하지 않는다)
+  if (!rec.rest && today.p && today.m) {
+    var avg = (today.p + today.m) / 2;
+    if (avg >= 4) state.band = Math.min(5, state.band + 1);
+    else if (avg <= 2) state.band = Math.max(1, state.band - 1);
+  }
+
+  today.opened = checkUnlock();
+  today.levelMsg = evalAutonomy();
+  var ok = persist();
+  today.rec = rec; today.step = 'done';
+
+  if (today.opened) { lastUnlockedKey = today.opened; cur = today.opened; }
+  else cur = rec.space;
+  syncMap();
+  renderToday(); renderMap(); renderDrawer(); renderReport(); renderHeader();
+  if (!ok) toast('저장 공간이 부족해 오래된 사진을 비웠어요. 기록은 남아 있습니다.');
+}
+
+function commitRest() {
+  finalize({
+    id: 'u' + Date.now(), space: frontier(), dateKey: todayKey(), dateLabel: todayLabel(),
+    title: '오늘은 쉬어가기', photo: null, blur: false, note: '', rest: true,
+    shard: R.REST, area: null, demo: false
+  });
+}
+
+function commitAttempt() {
+  var m = today.chosen;
+  var base = {
+    id: 'u' + Date.now(), space: placeOf(m), dateKey: todayKey(), dateLabel: todayLabel(),
+    title: m.t, note: today.note, rest: false, area: m.area, cat: m.cat,
+    p: today.p || null, mm: today.m || null, demo: today.photoDemo,
+    shard: R.ATTEMPT + (today.note ? R.NOTE : 0) + R.PHOTO
+  };
+  if (!today.photo) { base.photo = null; base.blur = false; finalize(base); return; }
+  var blur = today.blur;
+  loadImage(today.photo).then(function (img) {
+    base.photo = encodePhoto(img, blur); base.blur = blur; finalize(base);
+  }).catch(function () {
+    base.photo = null; base.blur = false; finalize(base); toast('사진을 불러오지 못해 기록만 남겼어요.');
+  });
+}
+
+function checkUnlock() {
+  if (state.unlocked >= SPACES.length) return null;
+  if (attemptsOfState(frontier()) >= R.UNLOCK_ATTEMPTS) { state.unlocked += 1; return SPACES[state.unlocked - 1].key; }
+  return null;
+}
+function attemptsOfState(k) {
+  return state.records.filter(function (r) { return r.space === k && !r.rest; }).length;
+}
+
+function evalAutonomy() {
+  var A = state.autonomy, s = state.sig;
+  var done = state.records.filter(function (r) { return !r.rest; }).length;
+  var d = Math.max(doneDays(), done);   // 데모: 하루에 여러 미션을 담아도 사다리가 열리게
+  var areas = {}; state.records.forEach(function (r) { if (r.area) areas[r.area] = 1; });
+  var next = A;
+  if (A === 0 && d >= 3) next = 1;
+  else if (A === 1 && s.swaps + s.adds >= 2 && d >= 3) next = 2;
+  else if (A === 2 && d >= 5 && Object.keys(areas).length >= 2) next = 3;
+  else if (A === 3 && s.selfProposals >= 2 && s.selfCompletions >= 1) next = 4;
+  if (next === A) return null;
+  state.autonomy = next;
+  return AUTONOMY[next].msg;
+}
+
+/* =========================================================================
+ * 9. 지도 (나의 공간)
+ * ========================================================================= */
+var cv = $('cv'), ctx = cv.getContext('2d');
+var scene = $('scene'), veil = $('veil'), unlockMsg = $('unlockMsg');
+var K = 2;
+imgData = ctx.createImageData(W, H);
+u32 = new Uint32Array(imgData.data.buffer);
+
+function mk(id, space, dateLabel, title, kind, blur, note, rest) {
+  return {
+    id: id, space: space, dateLabel: dateLabel, title: title,
+    photo: kind ? demoPhoto(kind) : null, blur: !!blur, note: note || '', rest: !!rest,
+    shard: (rest ? R.REST : R.ATTEMPT) + (note ? R.NOTE : 0), demo: true
+  };
+}
+function buildDay1() {
+  return { unlocked: 1, records: [
+    mk('a1', 'room', '6월 28일', '커튼 열고 햇빛 보기', 'curtain', false, '', false),
+    mk('a2', 'room', '6월 28일', '물 한 컵 마시기', 'water', false, '', false)] };
+}
+function buildDay52() {
+  return { unlocked: 4, records: [
+    mk('b1', 'room', '6월 28일', '커튼 열고 햇빛 보기', 'curtain', false, '', false),
+    mk('b2', 'room', '7월 5일', '이불 정리하기', 'blanket', false, '', false),
+    mk('b3', 'room', '7월 19일', '창가 화분에 빛 쬐어주기', 'plant', false, '', false),
+    mk('b4', 'room', '8월 2일', '책상 위 한 뼘만 정리하기', 'desk', true, '조금 넓어진 느낌', false),
+    mk('b5', 'home', '7월 11일', '설거지 한 개만 하기', 'dishes', false, '', false),
+    mk('b6', 'home', '7월 28일', '거실 창문 열고 환기하기', null, false, '바람이 시원했다', false),
+    mk('b7', 'front', '8월 6일', '집 앞에서 5분 걷기', 'sky', false, '', false),
+    mk('b8', 'front', '8월 13일', '건물 앞까지 다녀오기', null, false, '', false),
+    mk('b9', 'town', '8월 16일', '동네 나무 보고 오기', 'tree', false, '초록이 진했다', false),
+    mk('b10', 'town', '8월 18일', '편의점 다녀오기', 'store', false, '', false)] };
+}
+
+function syncMap() {
+  if (mapMode === 'day1') mapState = buildDay1();
+  else if (mapMode === 'day52') mapState = buildDay52();
+  else mapState = state;
+}
+
+function fitScale() {
+  var avail = document.querySelector('.app').clientWidth;
+  K = Math.max(1, Math.min(4, Math.floor(avail / W)));
+  cv.style.width = (W * K) + 'px'; cv.style.height = (H * K) + 'px';
+  scene.style.width = (W * K) + 'px'; scene.style.height = (H * K) + 'px';
+}
+function drawScene() { (SCENES[cur] || sceneRoom)(); ctx.putImageData(imgData, 0, 0); }
+
+function renderStrip() {
+  var strip = $('strip'); strip.innerHTML = '';
+  SPACES.forEach(function (s, i) {
+    if (i > 0) { var bar = document.createElement('div'); bar.className = 'bar' + (i <= mapState.unlocked - 1 ? ' on' : ''); strip.appendChild(bar); }
+    var n = document.createElement('div');
+    n.className = 'node' + (i < mapState.unlocked ? ' on' : '') + (i === mapState.unlocked - 1 ? ' cur' : '');
+    strip.appendChild(n);
+  });
+  $('jNow').textContent = SPACES[mapState.unlocked - 1].name;
+  $('jShard').textContent = totalShards();
+}
+
+function renderChips() {
+  var wrap = $('chips'); wrap.innerHTML = '';
+  SPACES.forEach(function (s, i) {
+    var locked = i >= mapState.unlocked;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (locked ? ' locked' : '') +
+      (!locked && s.key === lastUnlockedKey && mapState.unlocked > 1 ? ' isnew newring' : '');
+    b.setAttribute('aria-pressed', String(!locked && s.key === cur));
+    b.innerHTML = (locked ? '🔒 ' : '') + esc(s.name) + (locked ? '' : '<span class="n">' + recordsOf(s.key).length + '</span>');
+    b.addEventListener('click', function () {
+      if (locked) { toast(lockLine()); return; }
+      cur = s.key; renderMap();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function clearFrames() {
+  Array.prototype.slice.call(scene.querySelectorAll('.frame,.stake')).forEach(function (n) { n.parentNode.removeChild(n); });
+}
+function renderFrames() {
+  clearFrames();
+  var slots = SLOTS[cur] || [];
+  recordsOf(cur).slice(-slots.length).forEach(function (rec, i) {
+    var slot = slots[i], indoor = slot.t !== 'ground';
+    var fw = Math.round((indoor ? 21 : 19) * K);
+    var ph = Math.round((indoor ? 15 : 14) * K);
+    var cap = Math.round(5 * K), fh = ph + cap + 4;
+    var el = document.createElement('div');
+    el.className = 'frame ' + (slot.t === 'wallL' ? 'wallL' : slot.t === 'wallR' ? 'wallR' : 'ground') + (rec.rest ? ' rest' : '');
+    el.style.width = fw + 'px';
+    el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', rec.dateLabel + ' ' + rec.title);
+    el.innerHTML = (rec.photo
+      ? '<img class="ph" src="' + rec.photo + '" alt="" style="height:' + ph + 'px">'
+      : '<div class="empty" style="height:' + ph + 'px;font-size:' + Math.round(5.5 * K) + 'px">' + (rec.rest ? '쉼' : '기록') + '</div>') +
+      '<span class="cap" style="height:' + cap + 'px;line-height:' + cap + 'px;font-size:' + Math.round(4.8 * K) + 'px">' +
+      esc(shortDate(rec.dateLabel)) + '</span>';
+    if (indoor) {
+      el.style.left = Math.round(slot.x * K - fw / 2) + 'px';
+      el.style.top = Math.round(slot.y * K - fh / 2) + 'px';
+      el.style.transform = 'skewY(' + (slot.t === 'wallL' ? '-26.57' : '26.57') + 'deg)';
+    } else {
+      var stakeH = Math.round(5 * K);
+      el.style.left = Math.round(slot.x * K - fw / 2) + 'px';
+      el.style.top = Math.round(slot.y * K - stakeH - fh) + 'px';
+      el.style.transform = 'rotate(' + (i % 2 ? 1.6 : -1.8) + 'deg)';
+      var st = document.createElement('div');
+      st.className = 'stake';
+      st.style.left = Math.round(slot.x * K - 1) + 'px';
+      st.style.top = Math.round(slot.y * K - stakeH) + 'px';
+      st.style.width = '2px'; st.style.height = stakeH + 'px';
+      scene.insertBefore(st, veil);
+    }
+    el.addEventListener('click', function () { openDetail(rec.id); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(rec.id); } });
+    scene.insertBefore(el, veil);
+  });
+}
+
+function lockLine() {
+  var k = SPACES[mapState.unlocked - 1].key;
+  var left = Math.max(0, R.UNLOCK_ATTEMPTS - attemptsOf(k));
+  return SPACES[mapState.unlocked - 1].name + '에 기록 ' + left + '개가 더 쌓이면 다음 공간이 열려요';
+}
+
+function renderSpaceInfo() {
+  var s = SPACES[SPACE_INDEX[cur]];
+  $('spName').innerHTML = esc(s.name) + (cur === lastUnlockedKey && mapState.unlocked > 1 ? '<span class="badge-new">NEW</span>' : '');
+  $('spDesc').textContent = s.desc;
+  var card = $('lockCard');
+  if (mapState.unlocked >= SPACES.length) card.hidden = true;
+  else {
+    card.hidden = false;
+    card.innerHTML = '🔒 <b>' + esc(SPACES[mapState.unlocked].name) + '</b> · 아직 닫혀 있어요<br>' + esc(lockLine());
+  }
+}
+
+var SPARROW = [
+  '.......oooooo.......',
+  '.....oobbbbbboo.....',
+  '....obbbbbbbbbbo....',
+  '...obbbbbbbbbbbbo...',
+  '..obbbbbbbbbbbbbbo..',
+  '..obbbebbbbbbebbbo..',
+  '..obkkbbyyyybbkkbo..',
+  '..obkkcccyyccckkbo..',
+  '..obbccccccccccbbo..',
+  '..odbccccccccccbdo..',
+  '..oddccccccccccddo..',
+  '..oddccccccccccddo..',
+  '..obbccccccccccbbo..',
+  '...obbccccccccbbo...',
+  '....obbccccccbbo....',
+  '.....oobccccboo.....',
+  '.......oooooo.......',
+  '.......y....y.......',
+  '......yyy..yyy......'
+];
+var SPARROW_COL = { o: '#7A5A45', b: '#B9926F', d: '#A17C5C', c: '#F1E4CE', k: '#E4BCA6', e: '#4A3728', y: '#EE9A2E' };
+
+function paintMascot(c) {
+  if (!c) return;
+  var gw = SPARROW[0].length, gh = SPARROW.length;
+  var sc = Math.max(1, Math.floor(Math.min(c.width / gw, c.height / gh)));
+  var ox = Math.floor((c.width - gw * sc) / 2), oy = Math.floor((c.height - gh * sc) / 2);
+  var x = c.getContext('2d');
+  x.clearRect(0, 0, c.width, c.height);
+  for (var r = 0; r < gh; r++)
+    for (var q = 0; q < gw; q++) {
+      var col = SPARROW_COL[SPARROW[r][q]];
+      if (col) { x.fillStyle = col; x.fillRect(ox + q * sc, oy + r * sc, sc, sc); }
+    }
+}
+function drawMascotInto() {
+  paintMascot($('hdMascot')); paintMascot($('mascotCv'));
+  Array.prototype.slice.call(document.querySelectorAll('canvas.mas')).forEach(paintMascot);
+}
+
+function renderMascotLine() {
+  var last = mapState.records[mapState.records.length - 1], say = $('mascotSay');
+  if (!last) say.innerHTML = '<b>' + MASCOT_NAME + '</b> · 오늘 하나만 남겨도 여기에 붙어요.';
+  else say.innerHTML = '<b>' + MASCOT_NAME + '</b> · ' + esc(last.dateLabel) + ', ' +
+    (last.rest ? '쉬어간 날을 남겼어요.' : '‘' + esc(last.title) + '’를 남겼어요.');
+}
+
+function renderList() {
+  var recs = recordsOf(cur).slice().reverse(), list = $('list');
+  $('recCount').textContent = recs.length ? recs.length + '개' : '';
+  list.innerHTML = '';
+  if (!recs.length) {
+    list.innerHTML = '<p class="empty-note">아직 이곳의 기록이 없어요.<br>오늘 하나만 남겨도 여기에 붙습니다.</p>';
+    return;
+  }
+  recs.forEach(function (rec) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'row' + (rec.rest ? ' rest' : '');
+    b.innerHTML = (rec.photo ? '<img class="th" src="' + rec.photo + '" alt="">' :
+      '<span class="thn">' + (rec.rest ? '쉼' : '·') + '</span>') +
+      '<span class="meta"><span class="t">' + esc(rec.title) + (rec.demo ? '<span class="tagdemo">데모 예시</span>' : '') + '</span>' +
+      '<span class="d">' + esc(rec.dateLabel) + (rec.note ? ' · ' + esc(rec.note) : '') + '</span></span>' +
+      '<span class="sh">+' + rec.shard + '</span>';
+    b.addEventListener('click', function () { openDetail(rec.id); });
+    list.appendChild(b);
+  });
+}
+
+function renderMap() {
+  if (SPACE_INDEX[cur] >= mapState.unlocked) cur = SPACES[mapState.unlocked - 1].key;
+  fitScale(); drawScene(); renderStrip(); renderChips(); renderFrames();
+  renderSpaceInfo(); renderMascotLine(); renderList(); drawMascotInto();
+}
+
+function playUnlock(key) {
+  cur = key; lastUnlockedKey = key; renderMap();
+  veil.classList.add('on'); unlockMsg.classList.add('on');
+  requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove('on'); }); });
+  setTimeout(function () { unlockMsg.classList.remove('on'); }, 1500);
+}
+
+var toastTimer = null;
+function toast(msg) {
+  var t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 2400);
+}
+
+/* =========================================================================
+ * 10. 기록함
+ * ========================================================================= */
+var drawerFilter = 'all';
+function renderDrawer() {
+  var all = state.records.slice().reverse();
+  var withPhoto = all.filter(function (r) { return r.photo; }).length;
+  var rest = all.filter(function (r) { return r.rest; }).length;
+  $('drawerStats').innerHTML =
+    stat('남긴 미션', all.length, '개') + stat('빛', all.reduce(function (a, r) { return a + r.shard; }, 0), '') +
+    stat('남긴 장면', withPhoto, '장') + stat('쉼터', rest, '번');
+
+  var f = $('drawerFilters');
+  f.innerHTML = '<button class="chip" type="button" data-f="all" aria-pressed="' + (drawerFilter === 'all') + '">전체<span class="n">' + all.length + '</span></button>' +
+    SPACES.slice(0, state.unlocked).map(function (s) {
+      var n = all.filter(function (r) { return r.space === s.key; }).length;
+      return '<button class="chip" type="button" data-f="' + s.key + '" aria-pressed="' + (drawerFilter === s.key) + '">' + esc(s.name) + '<span class="n">' + n + '</span></button>';
+    }).join('');
+  f.onclick = function (e) { var t = e.target.closest('button[data-f]'); if (!t) return; drawerFilter = t.dataset.f; renderDrawer(); };
+
+  var list = drawerFilter === 'all' ? all : all.filter(function (r) { return r.space === drawerFilter; });
+  var g = $('drawerGrid');
+  if (!list.length) {
+    g.innerHTML = '';
+    $('drawerHint').textContent = '아직 모인 기록이 없어요. 오늘 하나만 남겨도 여기에 담깁니다.';
+    return;
+  }
+  g.innerHTML = list.map(function (r) {
+    return '<button class="tile' + (r.rest ? ' rest' : '') + '" type="button" data-id="' + esc(r.id) + '">' +
+      (r.photo ? '<img src="' + r.photo + '" alt="">' :
+        '<span class="none">' + (r.rest ? '쉼터' : esc(r.title.slice(0, 10))) + '</span>') +
+      '<span class="dt">' + esc(shortDate(r.dateLabel)) + '</span></button>';
+  }).join('');
+  g.onclick = function (e) { var t = e.target.closest('button[data-id]'); if (!t) return; openDetail(t.dataset.id); };
+  $('drawerHint').textContent = '기록을 누르면 그날의 미션을 볼 수 있어요. 사진을 지워도 발자국은 남습니다.';
+}
+function stat(k, v, u) {
+  return '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + (u ? '<small>' + u + '</small>' : '') + '</div></div>';
+}
+
+/* =========================================================================
+ * 11. 회복 리포트
+ * ========================================================================= */
+function renderReport() {
+  var A = state.autonomy, recs = state.records;
+  var areas = { rhythm: 0, selfcare: 0, relation: 0, social: 0 };
+  recs.forEach(function (r) { if (r.area && areas[r.area] != null) areas[r.area]++; });
+  var maxA = Math.max(1, Math.max(areas.rhythm, areas.selfcare, areas.relation, areas.social));
+
+  $('reportBody').innerHTML =
+    '<div class="levelcard"><div class="lv">자율성 회복 단계 A' + A + '</div>' +
+    '<h2>' + AUTONOMY[A].n + '</h2><p>' + AUTONOMY[A].msg + '</p>' +
+    '<div class="ladder">' + AUTONOMY.map(function (l, i) {
+      return '<div class="step ' + (i < A ? 'done' : i === A ? 'now' : '') + '"><span class="dot"></span><span>A' + i + ' ' + l.n + ' — ' + l.open + '</span></div>';
+    }).join('') + '</div>' +
+    '<p class="muted" style="font-size:11.5px;margin-top:12px">SDT 내재화 연속선 · PAM 4단계 · 스캐폴딩-페이딩 기반. 사용자 화면에는 이 숫자와 단계명을 노출하지 않습니다. 강등은 없습니다.</p></div>' +
+
+    '<div class="sec-title"><span>회복 요약</span></div>' +
+    '<div class="stats">' +
+    stat('함께한 날', doneDays(), '일') + stat('남긴 미션', recs.length, '개') +
+    stat('빛', recs.reduce(function (a, r) { return a + r.shard; }, 0), '') +
+    stat('열린 공간', state.unlocked, '/5') +
+    stat('남긴 장면', recs.filter(function (r) { return r.photo; }).length, '장') +
+    stat('쉼터', recs.filter(function (r) { return r.rest; }).length, '번') +
+    '</div>' +
+
+    '<div class="note" style="margin-top:12px"><h3>영역별 시도 분포</h3>' +
+    Object.keys(areas).map(function (k) {
+      return '<div style="display:flex;align-items:center;gap:9px;margin:7px 0">' +
+        '<span style="width:104px;flex:none;font-size:12.5px">' + AREA_LABEL[k] + '</span>' +
+        '<span style="flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden">' +
+        '<i style="display:block;height:100%;width:' + Math.round(areas[k] / maxA * 100) + '%;background:var(--glow2)"></i></span>' +
+        '<b style="width:22px;text-align:right;font-size:12px;color:var(--ink)">' + areas[k] + '</b></div>';
+    }).join('') +
+    '<p style="margin:10px 0 0;font-size:11.5px">회복단계에 따라 열려 있는 영역만 제안합니다. 잠긴 영역은 재촉하지 않고 닫아 둡니다.</p></div>' +
+
+    '<div class="note"><h3>보상 규칙 (코드 상수 R)</h3><table>' +
+    '<tr><td>시도 (미션 수행)</td><td>+' + R.ATTEMPT + '</td></tr>' +
+    '<tr><td>회고 한마디</td><td>+' + R.NOTE + '</td></tr>' +
+    '<tr><td>쉼터 (오늘은 쉬기)</td><td>+' + R.REST + '</td></tr>' +
+    '<tr><td>사진 인증</td><td>+' + R.PHOTO + '</td></tr>' +
+    '<tr><td>공간 개방</td><td>현재 공간 시도 ' + R.UNLOCK_ATTEMPTS + '회</td></tr></table>' +
+    '<p style="margin:9px 0 0;font-size:11.5px">난이도가 높다고, 외출·대인 활동이라고 더 주지 않습니다. 사진 유무가 보상의 양을 바꾸지 않습니다.</p></div>' +
+
+    '<div class="note"><h3>프라이버시</h3><ul>' +
+    '<li>사진은 이 기기 안에만 저장됩니다. 업로드·공유 경로 자체가 없습니다.</li>' +
+    '<li>저장 전 캔버스 재인코딩으로 EXIF(위치·기기 정보)를 제거합니다.</li>' +
+    '<li>흐리게 보관은 저장 시점에 흐림을 굽습니다. 원본을 따로 두지 않습니다.</li>' +
+    '<li>사진만 지워도 시도한 기록(발자국)은 지도에 남습니다.</li>' +
+    '<li>저장 공간이 부족하면 오래된 사진만 비우고 기록은 유지합니다.</li></ul></div>' +
+
+    '<div class="note"><h3>이 화면에 넣지 않은 것</h3>' +
+    '랭킹 · 다른 사용자와의 비교 · 연속 기록(스트릭) · 미수행 페널티 · 난이도 숫자 · ' +
+    '진단이나 낙인이 되는 표현(고립·은둔·위험군 등) · 랜덤 뽑기와 기간 한정 연출.</div>' +
+
+    '<div class="note"><h3>팀에서 정해야 할 것</h3><ul>' +
+    '<li>사진이 붙은 기록과 빛만 남은 기록의 시각적 격차 — 사진 쪽이 더 예쁘면 그 자체가 촬영 압박이 됩니다.</li>' +
+    '<li>관계 영역에 사진 가능 시드 0개 — 여정 후반의 보상 밀도를 어떻게 채울지.</li>' +
+    '<li>공간 개방 컷오프 ' + R.UNLOCK_ATTEMPTS + '회는 데모용 임시 가설. 사용자 테스트 후 조정.</li>' +
+    '<li>사진 보관 정책 — 기기 변경 시 소실을 허용할 것인가.</li>' +
+    '<li>PIP의 확장어 — <b>Personalized Initiative Path</b>(나에게 맞는 작은 주도성을 쌓아가는 경로, 현재 적용) / <b>Personalized Interest-led Path</b>(내 관심사에서 시작하는 나만의 행동 경로) 중 택일.</li></ul></div>' +
+
+    '<div class="pad" style="margin-top:14px"><button class="btn warn" id="resetAll" type="button" style="width:100%">프로토타입 초기화</button>' +
+    '<p class="muted" style="font-size:11.5px;margin:8px 0 22px">이 기기에 저장된 기록과 사진을 모두 지우고 온보딩부터 다시 시작합니다.</p></div>';
+
+  $('resetAll').addEventListener('click', function () {
+    if (!confirm('이 기기에 저장된 기록과 사진을 모두 지울까요?')) return;
+    localStorage.removeItem(STORE_KEY);
+    state = freshState(); mapMode = 'mine'; syncMap();
+    resetToday('checkin'); startOnboarding(); renderAll();
+  });
+}
+
+/* =========================================================================
+ * 12. 기록 상세
+ * ========================================================================= */
+var detailId = null, showBlurred = false;
+function findRec(id) {
+  var pool = mapState.records.concat(state.records);
+  for (var i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
+  return null;
+}
+function openDetail(id) {
+  var rec = findRec(id); if (!rec) return;
+  detailId = id; showBlurred = false;
+  $('dTitle').textContent = rec.title;
+  $('dSub').innerHTML = rec.rest ? '쉬어간 날의 기록이에요.'
+    : '이 기록은 ' + esc(SPACES[SPACE_INDEX[rec.space]].name) + '에 놓여 있어요.';
+  $('dDate').textContent = rec.dateLabel;
+  $('dSpace').textContent = SPACES[SPACE_INDEX[rec.space]].name;
+  $('dNote').textContent = rec.note ? rec.note : '남기지 않았어요';
+  $('dShard').textContent = '+' + rec.shard + ' (사진은 +' + R.PHOTO + ')';
+  paintDetail(); $('detailBg').hidden = false;
+}
+function paintDetail() {
+  var rec = findRec(detailId), img = $('dPhoto'), none = $('dNoPhoto');
+  var has = !!(rec && rec.photo);
+  img.hidden = !has; none.hidden = has;
+  if (has) { img.src = rec.photo; img.style.filter = showBlurred ? 'blur(9px)' : 'none'; }
+  else if (rec) none.textContent = rec.purged ? '저장 공간이 부족해 사진은 비웠지만, 기록은 남아 있어요' : '사진 없이 남긴 기록이에요';
+  $('dViewRow').hidden = !has; $('dDel').hidden = !has;
+  if (has) {
+    var baked = !!rec.blur;
+    $('dBlurBtn').setAttribute('aria-pressed', String(baked || showBlurred));
+    $('dOrigBtn').setAttribute('aria-pressed', String(!baked && !showBlurred));
+    $('dBlurBtn').disabled = baked; $('dOrigBtn').disabled = baked;
+    $('dPrivNote').textContent = baked
+      ? '흐리게 보관한 기록이에요. 저장할 때 흐려져서 원본은 기기에 남아 있지 않습니다.'
+      : '사진은 이 기기 안에만 있고, 저장할 때 위치·기기 정보(EXIF)를 지웠습니다.';
+  } else $('dPrivNote').textContent = '사진을 지워도 이 기록과 공간의 발자국은 그대로 남아 있어요.';
+}
+
+/* =========================================================================
+ * 13. 온보딩
+ * ========================================================================= */
+var onbStep = 0, onbAns = null;
+function onbScreens() {
+  var s = ['intro', 'q1', 'q2'];
+  for (var i = 0; i < ONB.status.length; i++) s.push('ss' + i);
+  return s.concat(['interests', 'ready']);
+}
+var INTERESTS = ['게임', '음악', '동물', '식물', '요리·먹는 것', '책·글', '스포츠', '그림·만들기'];
+
+function startOnboarding() {
+  onbStep = 0; onbAns = { q1: null, q2: null, ss: [], interests: [] };
+  $('onb').hidden = false; renderOnb();
+}
+
+function renderOnb() {
+  var sc = onbScreens(), key = sc[onbStep];
+  $('onbBar').style.width = Math.round(onbStep / (sc.length - 1) * 100) + '%';
+  $('onbBack').style.visibility = onbStep === 0 ? 'hidden' : 'visible';
+  $('onbSkip').hidden = key.indexOf('ss') !== 0;
+  var body = $('onbBody'), foot = $('onbFoot');
+  foot.innerHTML = '';
+
+  if (key === 'intro') {
+    body.innerHTML =
+      '<div class="onb-hi"><canvas class="mas" width="40" height="38"></canvas>' +
+      '<div class="bubble">안녕. 나는 ' + MASCOT_NAME + '야. 뱁새라서 뱁달이.<br>오늘의 미션을 하나만 배달하고 갈게. 재촉은 안 해.</div></div>' +
+      '<h2>내 속도대로<br>한 걸음씩</h2>' +
+      '<p class="lead"><b>' + APP_NAME + ' · ' + APP_KO + '</b> — 작은 씨앗, 아주 작은 점, 그리고 어린 새가 처음 내는 소리.<br>' +
+      APP_FULL + ' — ' + APP_FULL_KO + '.<br><br>' + esc(ONB.intro) + '<br><br>' +
+      '고른 답은 이 기기 안에만 저장돼. 점수를 매기거나 어딘가로 보내지 않아.</p>';
+    foot.innerHTML = '<button class="btn solid" id="onbNext" type="button">시작하기</button>';
+    $('onbNext').onclick = function () { onbStep++; renderOnb(); };
+  }
+
+  else if (key === 'q1' || key === 'q2') {
+    var q = key === 'q1' ? ONB.q1 : ONB.q2;
+    body.innerHTML =
+      '<div class="onb-hi"><canvas class="mas" width="40" height="38"></canvas><div class="bubble">' + esc(q.q) + '</div></div>' +
+      '<div class="opts" id="optRow">' + q.options.map(function (o, i) {
+        return '<button type="button" data-v="' + (i + 1) + '">' + esc(o) + '</button>';
+      }).join('') + '</div>';
+    $('optRow').onclick = function (e) {
+      var t = e.target.closest('button[data-v]'); if (!t) return;
+      onbAns[key] = +t.dataset.v; onbStep++; renderOnb();
+    };
+  }
+
+  else if (key.indexOf('ss') === 0) {
+    var idx = +key.slice(2), it = ONB.status[idx];
+    body.innerHTML =
+      '<div class="onb-hi"><canvas class="mas" width="40" height="38"></canvas><div class="bubble">' + esc(it.q) + '</div></div>' +
+      '<p class="lead">정답은 없어. 요즘의 느낌에 가까운 걸로 골라줘.</p>' +
+      '<div class="opts" id="optRow">' + ONB.scale.map(function (o, i) {
+        return '<button type="button" data-v="' + i + '">' + esc(o) + '</button>';
+      }).join('') + '</div>';
+    $('optRow').onclick = function (e) {
+      var t = e.target.closest('button[data-v]'); if (!t) return;
+      onbAns.ss[idx] = +t.dataset.v; onbStep++; renderOnb();
+    };
+  }
+
+  else if (key === 'interests') {
+    body.innerHTML =
+      '<div class="onb-hi"><canvas class="mas" width="40" height="38"></canvas><div class="bubble">요즘 그나마 마음이 가는 건 뭐야?</div></div>' +
+      '<p class="lead">고르면 비슷한 결의 미션을 먼저 배달할게. 안 골라도 괜찮아.</p>' +
+      '<div class="tagpick" id="tagRow">' + INTERESTS.map(function (t) {
+        return '<button type="button" data-t="' + esc(t) + '" aria-pressed="' + (onbAns.interests.indexOf(t) >= 0) + '">' + esc(t) + '</button>';
+      }).join('') + '</div>';
+    $('tagRow').onclick = function (e) {
+      var t = e.target.closest('button[data-t]'); if (!t) return;
+      var v = t.dataset.t, i = onbAns.interests.indexOf(v);
+      if (i >= 0) onbAns.interests.splice(i, 1); else onbAns.interests.push(v);
+      t.setAttribute('aria-pressed', String(i < 0));
+    };
+    foot.innerHTML = '<button class="btn solid" id="onbNext" type="button">다음</button>';
+    $('onbNext').onclick = function () { onbStep++; renderOnb(); };
+  }
+
+  else {
+    body.innerHTML =
+      '<div class="onb-hi"><canvas class="mas" width="40" height="38"></canvas>' +
+      '<div class="bubble">고마워. 이제 시작해도 돼.</div></div>' +
+      '<h2>여기서 지키는 것</h2>' +
+      '<p class="lead">' +
+      '· 하루에 미션 하나면 충분해요. 안 한 날은 빈칸이 아니라 쉼터로 남아요.<br><br>' +
+      '· 사진은 <b>선택</b>이에요. 사진이 있든 없든 받는 빛은 같아요.<br><br>' +
+      '· 사진은 이 기기 안에만 저장되고, 위치·기기 정보는 지워요.<br><br>' +
+      '· 다른 사람과 비교하거나 순위를 매기지 않아요.' +
+      '</p>';
+    foot.innerHTML = '<button class="btn solid" id="onbNext" type="button">첫 미션 받으러 가기</button>';
+    $('onbNext').onclick = finishOnboarding;
+  }
+  drawMascotInto();
+}
+
+$('onbBack').onclick = function () { if (onbStep > 0) { onbStep--; renderOnb(); } };
+$('onbSkip').onclick = function () {
+  var sc = onbScreens();
+  onbStep = sc.indexOf('interests'); renderOnb();
+};
+
+function finishOnboarding() {
+  var q1 = onbAns.q1 || 1, q2 = onbAns.q2 || 6;
+  // 검증된 조작적 정의: q1 ∈ {1,2,3,4} AND q2 ∉ {4,5} → 은둔
+  var secluded = (q1 >= 1 && q1 <= 4) && !(q2 === 4 || q2 === 5);
+  var answered = onbAns.ss.filter(function (v) { return v != null; });
+  var severity = answered.length ? answered.reduce(function (a, b) { return a + b; }, 0) : null;
+  if (severity != null && answered.length < ONB.status.length)     // 일부만 답했으면 평균으로 보정
+    severity = Math.round(severity / answered.length * ONB.status.length);
+
+  var stage;
+  if (secluded) stage = 'secluded';
+  else if (severity == null) stage = 'at_risk';
+  else if (severity >= 26) stage = 'highly';
+  else if (severity >= 11) stage = 'at_risk';
+  else stage = 'not_at_risk';
+
+  var band = severity == null ? 2 : severity <= 10 ? 3 : severity <= 25 ? 2 : 1;
+  var rng = STAGE_DEF[stage].band;
+  band = Math.max(rng[0], Math.min(rng[1], band));
+
+  // 영역 시드 (지금 부담이 큰 영역) — 내부 라우팅용, 화면에 노출하지 않음
+  var seed = {};
+  onbAns.ss.forEach(function (v, i) {
+    if (v == null) return;
+    var areas = ONB.status[i].areas || {};
+    for (var a in areas) seed[a] = (seed[a] || 0) + v * areas[a];
+  });
+
+  state.onb = { q1: q1, q2: q2, severity: severity, secluded: secluded, stage: stage, interests: onbAns.interests, seed: seed };
+  state.band = band;
+  persist();
+  $('onb').hidden = true;
+  resetToday('checkin');
+  renderAll();
+}
+
+/* =========================================================================
+ * 14. 탭 · 부팅
+ * ========================================================================= */
+function setTab(t) {
+  tab = t;
+  ['today', 'map', 'drawer', 'report'].forEach(function (k) { $('tab-' + k).hidden = (k !== t); });
+  Array.prototype.slice.call($('tabbar').children).forEach(function (b) {
+    b.setAttribute('aria-selected', String(b.dataset.tab === t));
+  });
+  window.scrollTo(0, 0);
+  if (t === 'map') renderMap();
+  if (t === 'drawer') renderDrawer();
+  if (t === 'report') renderReport();
+  if (t === 'today') renderToday();
+}
+
+function renderHeader() { $('hdShard').textContent = state.records.reduce(function (a, r) { return a + r.shard; }, 0); }
+
+function renderAll() { syncMap(); renderHeader(); renderToday(); renderMap(); renderDrawer(); renderReport(); }
+
+$('tabbar').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab);
+});
+
+$('seg').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-mode]'); if (!b) return;
+  var prev = mapMode, prevUnlocked = mapState.unlocked;
+  mapMode = b.dataset.mode;
+  Array.prototype.slice.call($('seg').children).forEach(function (x) {
+    x.setAttribute('aria-pressed', String(x.dataset.mode === mapMode));
+  });
+  syncMap();
+  cur = SPACES[mapState.unlocked - 1].key;
+  if (mapMode === 'day52' && prev === 'day1' && prevUnlocked < mapState.unlocked) playUnlock(cur);
+  else { lastUnlockedKey = mapState.unlocked > 1 ? cur : null; renderMap(); }
+});
+
+$('dClose').addEventListener('click', function () { $('detailBg').hidden = true; });
+$('dBlurBtn').addEventListener('click', function () { showBlurred = true; paintDetail(); });
+$('dOrigBtn').addEventListener('click', function () { showBlurred = false; paintDetail(); });
+$('dDel').addEventListener('click', function () {
+  var rec = findRec(detailId); if (!rec || !rec.photo) return;
+  rec.photo = null; rec.blur = false; rec.purged = false;
+  if (mapMode === 'mine') persist();
+  paintDetail(); renderMap(); renderDrawer(); renderReport();
+  toast('사진만 지웠어요. 기록과 발자국은 그대로 남아 있습니다.');
+});
+$('detailBg').addEventListener('click', function (e) { if (e.target === $('detailBg')) $('detailBg').hidden = true; });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('detailBg').hidden = true; });
+
+var resizeTimer = null;
+window.addEventListener('resize', function () {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(function () { if (tab === 'map') renderMap(); }, 120);
+});
+
+/* ---------- 시작 ---------- */
+state = load();
+rollDay();
+mapState = state;
+cur = SPACES[state.unlocked - 1].key;
+lastUnlockedKey = state.unlocked > 1 ? cur : null;
+resetToday(state.mood ? 'pick' : 'checkin');
+if (today.step === 'pick') { today.soft = state.mood <= 2; today.cands = pickCandidates(today.soft, false); }
+document.title = APP_NAME + ' · ' + APP_KO;
+renderAll();
+setTab('today');
+if (!state.onb) startOnboarding(); else drawMascotInto();
+
+})();
+
+
+</script>
+</body>
+</html>
