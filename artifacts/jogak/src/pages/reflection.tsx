@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Camera, Check } from "lucide-react";
 import { applyCompletion, EarnedReward } from "@/lib/rewards";
+import { microFeedback, SKIP_REASONS } from "@/lib/ba";
 import { Character } from "@/components/Character";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { useVerifyChallengePhoto } from "@workspace/api-client-react";

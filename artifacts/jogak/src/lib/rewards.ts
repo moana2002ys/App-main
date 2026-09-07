@@ -186,6 +186,7 @@ export interface EarnedReward {
   itemLabel: string;
   area: Area;
   backgroundLabel?: string;
+  earnedFurniture?: FurnitureItem; // 챌린지 완료로 해금된 가구 (9/2 My Home 보상)
 }
 
 export interface RewardState {
@@ -199,17 +200,6 @@ export interface RewardState {
 }
 
 import { FURNITURE_CATALOG, FurnitureItem } from "./decor";
-
-export interface EarnedReward {
-  categoryId: string;
-  title: string;
-  badgeName: string;
-  itemId?: string;
-  itemLabel?: string;
-  area: Area;
-  backgroundLabel?: string;
-  earnedFurniture?: FurnitureItem;
-}
 
 export interface RewardResult extends RewardState {
   earned: EarnedReward[];

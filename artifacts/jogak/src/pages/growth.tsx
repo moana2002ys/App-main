@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { BACKGROUND_STAGES, AREA_LABELS, ALL_AREAS, areaTotals } from "@/lib/rewards";
 import { MoodEntry, weeklyMoodSummary, MOODS } from "@/lib/cycle";
+import { CollectionSection } from "@/components/growth/CollectionSection";
 import { RetrospectiveSection } from "@/components/growth/RetrospectiveSection";
 import { Area } from "@/lib/classifier";
 import { IsoCanvas } from "@/components/IsoCanvas";

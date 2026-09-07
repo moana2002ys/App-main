@@ -49,7 +49,7 @@ export function Mascot({
   const animationVariants = {
     idle: {
       y: [0, -3, 0],
-      transition: { repeat: Infinity, duration: 2.4, ease: "easeInOut" },
+      transition: { repeat: Infinity, duration: 2.4, ease: "easeInOut" as const },
     },
     wave: {
       y: [0, -2, 0],
