@@ -35,17 +35,21 @@ export function KnowYourselfChapter({
   );
   const [finalized, setFinalized] = useState(false);
 
-  // 이미 다 끝난 상태로 들어오면 아무것도 그리지 않고 바로 넘긴다(렌더 중 setState 방지).
-  const alreadyDone = !chapter || ky.finalized;
+  // 이미 다 끝난 상태로 '들어온' 경우에만 바로 넘긴다(렌더 중 setState 방지).
+  // 방금 5챕터를 마쳐 finalized가 된 경우는 예외 — 완료 화면(「이제 너를 훨씬 잘 알게 됐어」)을 보여야 한다.
+  // (9.9 검수: 이 예외가 빠져 Day4 마지막 완료 화면이 건너뛰어졌다.)
+  const alreadyDone = (!chapter || ky.finalized) && !finalized && phase !== "done";
   useEffect(() => {
     if (alreadyDone) onDone({ finalized: true, skipped: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alreadyDone]);
   if (alreadyDone) return null;
 
-  const currentItem = chapter.items[itemIndex];
+  // 5챕터를 막 마친 뒤의 완료 화면 렌더에서는 chapter가 없다(chapterIndex === 5). 그 렌더에서 items를 만지면
+  // "Cannot read properties of undefined (reading 'items')"로 트리 전체가 내려간다 — 9.9 검수에서 실제로 발생.
+  const currentItem = chapter?.items[itemIndex];
   const scale = currentItem ? getScale(currentItem.scale) : [];
-  const progress = (itemIndex + (phase === "done" ? 1 : 0)) / chapter.items.length;
+  const progress = chapter ? (itemIndex + (phase === "done" ? 1 : 0)) / chapter.items.length : 1;
 
   const exit = () => {
     if (phase !== "done") updateUser({ knowYourself: { ...ky, itemIndex } });
