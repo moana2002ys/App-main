@@ -104,6 +104,10 @@ export function OnboardingWeek() {
     updateUser({ onboardingWeek: { ...week, entries, dayIndex: dayIdx + 1 } });
     setStepIdx(-1);
     nextDay();
+    // store.nextDay는 다음 화면을 setUser 갱신 함수 안에서 정하는데, 같은 이벤트에서 앞선
+    // updateUser 때문에 그 함수가 늦게 실행되어 기본값(daily_checkin)이 먼저 적용된다.
+    // 온보딩 중엔 여기서 화면을 명시한다 — 같은 배치의 마지막 setView가 이긴다. (9.9 검수에서 발견)
+    setView("onboarding_week");
   };
 
   // D4-6 졸업 → 본 사이클. 나 알아가기 5챕터는 이미 챕터 컴포넌트가 단계를 확정했다.
