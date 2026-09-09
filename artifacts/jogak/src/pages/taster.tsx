@@ -92,6 +92,7 @@ export function Taster() {
                 {TASTER_MISSIONS.map((m) => (
                   <button
                     key={m.id}
+                    aria-label={`${m.title} · 약 ${m.minutes}분`}
                     onClick={() => { setPicked(m); setStep("doing"); }}
                     className="w-full text-left bg-white rounded-2xl border border-border/50 hover:border-primary/40 hover:bg-secondary/30 transition-colors px-5 py-4"
                   >

@@ -346,7 +346,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled) enterFromServer(me.email, me.state);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (cancelled) return;
+        // 서버 없이 여는 로컬 데모. 기본은 홈이지만, 주소에 ?onboarding=1 을 붙이면
+        // 온보딩 Day0부터 처음처럼 시작한다(온보딩 시연·검수용. demo.ts의 ?demo=1 과 같은 성격).
+        const wantOnboarding =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('onboarding') === '1';
+        if (wantOnboarding) {
+          const today = todayKey();
+          setUser({ ...defaultUser, email: 'guest@stepbystep.local', startedAt: today, lastSeenDate: today, dayCount: 1 });
+          setView('onboarding');
+        } else {
           setUser({ ...defaultUser, email: 'guest@stepbystep.local' });
           setView('home');
         }
