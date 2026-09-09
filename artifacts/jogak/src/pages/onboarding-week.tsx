@@ -1,236 +1,150 @@
-import { useState } from "react";
-import { useAppStore } from "@/lib/store";
-import { Character } from "@/components/Character";
+import { useMemo, useRef, useState } from "react";
+import { useAppStore, dateKeyForDay } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, LogOut } from "lucide-react";
 import {
   MOOD_OPTIONS,
+  ONBOARDING_DAYS,
   getOnboardingMission,
   emptyOnboardingWeek,
   summarizeOnboardingWeek,
+  pickOnboardingRecommendation,
   OnboardingDayEntry,
+  OnboardingExtraSlot,
 } from "@/lib/ba";
 import { getFirstLaunchItems } from "@/lib/survey";
 import { scoreFirstLaunch, deriveLegacyAnswers, SurveyResponses } from "@/lib/survey-scoring";
-import { dateKeyForDay } from "@/lib/store";
 import { formatKorean, formatRelative, todayKey } from "@/lib/day";
+import { CardDeck } from "@/components/CardDeck";
+import { Baebdal } from "@/components/onboarding/Baebdal";
+import { KnowYourselfChapter } from "@/components/KnowYourselfChapter";
+import {
+  LearnFaceSvg, CycleDiagram, ArrowDiagram, LoopDiagram, SpacesVisual,
+} from "@/components/onboarding/Visuals";
+import {
+  MOOD, PM, CHALLENGE, TIMELINE,
+  D1_2_BA, D1_2_BA_TITLE, D1_3_WHY15, D1_4_SURVEY,
+  D2_2_JOURNEY, D2_3_LEVELUP, D3_4_DECO, D4_4_INTEREST_WHY, D4_5_INTERESTS, D4_6_GRADUATE,
+} from "@/lib/onboarding-copy";
 
-// Day1 심리교육 슬라이드 — 진단·낙인 언어 없이, '상태'와 '작은 행동'의 이야기만.
-type LearnFace = "frown" | "wink" | "smile" | "joy";
+// 온보딩 Day1 ~ Day4 (v5 기획안 2장). Day0는 onboarding.tsx + taster.tsx.
+// 날마다 '대본(SCRIPT)'을 순서대로 밟는다. 화면 하나 = 대본 한 칸 = 문서의 화면 ID 하나.
+//   Day1  D1-1 기분 → D1-2 원리 5장 → D1-3 묻는 이유 → D1-4 15문항 → D1-5 고정 챌린지
+//   Day2  D2-1 기분 → D2-2 여정 5장 → D2-3 레벨업 3장 → D2-4 챕터1 → D2-5 고정 챌린지
+//   Day3  D3-1 기분 → D3-2 챕터2·3 → D3-3 혼합 2개 → D3-4 꾸미기 4장
+//   Day4  D4-1 기분 → D4-2 챕터4·5 → D4-3 혼합 2개 → D4-4 관심사 이유 → D4-5 관심사 → D4-6 졸업
+// Day는 실제 달력에서 나온다(가입일 기준). 종료일 Day4 고정 — 챕터를 건너뛰어도 같다.
+type Step =
+  | "mood" | "learn" | "why15" | "survey15" | "fixed"
+  | "journey" | "levelup" | "chapter" | "mixed" | "deco"
+  | "interestWhy" | "interests" | "graduate";
 
-const LEARN_CARDS: {
-  face: LearnFace;
-  title: string;
-  body: string;
-  diagram?: "cycle" | "arrow";
-  cta?: string;
-}[] = [
-  {
-    face: "frown",
-    title: "아무것도\n하고 싶지 않은 날이 있죠?",
-    body: "이불 밖으로 나가기도 벅차고,\n모든 것이 무의미하게 느껴질 때가 있어요.",
-  },
-  {
-    face: "wink",
-    title: "우리는 보통 기분이\n나아지면 움직이려 해요",
-    body: "하지만 무기력할 때 기다리기만 하면\n오히려 더 우울해지곤 하죠.",
-    diagram: "cycle",
-  },
-  {
-    face: "smile",
-    title: "일단 아주 작은 것부터\n움직여 볼까요?",
-    body: "신기하게도 작은 행동을 먼저 하면,\n그 뒤에 기분이 서서히 따라온답니다.",
-    diagram: "arrow",
-  },
-  {
-    face: "joy",
-    title: "이제부터 당신만의\n작은 조각을 맞춰볼까요?",
-    body: "매일 조금씩 성취감과 즐거움을 주는\n나만의 조각들을 찾아봐요.",
-    cta: "내 가치 찾기",
-  },
-];
+const SCRIPT: Record<number, Step[]> = {
+  1: ["mood", "learn", "why15", "survey15", "fixed"],
+  2: ["mood", "journey", "levelup", "chapter", "fixed"],
+  3: ["mood", "chapter", "chapter", "mixed", "deco"],
+  4: ["mood", "chapter", "chapter", "mixed", "interestWhy", "interests", "graduate"],
+};
 
-// 목업의 노란 얼굴 — 슬라이드별 표정
-function LearnFaceSvg({ face }: { face: LearnFace }) {
-  return (
-    <svg viewBox="0 0 100 100" className="w-40 h-40 mx-auto">
-      <circle cx="50" cy="50" r="46" fill="#FCD34D" />
-      {face === "frown" && (
-        <>
-          <path d="M28 34 L42 40" stroke="#3F3B33" strokeWidth="4" strokeLinecap="round" />
-          <path d="M72 34 L58 40" stroke="#3F3B33" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="36" cy="47" r="4.5" fill="#3F3B33" />
-          <circle cx="64" cy="47" r="4.5" fill="#3F3B33" />
-          <path d="M38 68 Q50 58 62 68" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-        </>
-      )}
-      {face === "wink" && (
-        <>
-          <path d="M60 26 Q64 20 68 26" stroke="#3F3B33" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-          <circle cx="36" cy="44" r="5" fill="#3F3B33" />
-          <circle cx="63" cy="44" r="3.5" fill="#3F3B33" />
-          <path d="M42 62 Q50 68 58 62" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
-        </>
-      )}
-      {face === "smile" && (
-        <>
-          <circle cx="35" cy="42" r="5" fill="#3F3B33" />
-          <circle cx="65" cy="42" r="5" fill="#3F3B33" />
-          <ellipse cx="28" cy="52" rx="5" ry="3" fill="#F9A8A8" opacity="0.7" />
-          <ellipse cx="72" cy="52" rx="5" ry="3" fill="#F9A8A8" opacity="0.7" />
-          <path d="M32 56 Q50 74 68 56" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-        </>
-      )}
-      {face === "joy" && (
-        <>
-          <path d="M24 26 L34 20 L36 30 Z" fill="#FB923C" />
-          <path d="M76 26 L66 20 L64 30 Z" fill="#FB923C" />
-          <path d="M28 44 Q35 36 42 44" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
-          <path d="M58 44 Q65 36 72 44" stroke="#3F3B33" strokeWidth="4" fill="none" strokeLinecap="round" />
-          <path d="M30 56 Q50 78 70 56" stroke="#3F3B33" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-        </>
-      )}
-    </svg>
-  );
+// 하루치 기록 초안 — 대본을 밟는 동안 채우고, 끝나면 entries에 넣는다.
+interface Draft {
+  mood: number | null;
+  completed: boolean;
+  p?: number;
+  m?: number;
+  skipped: boolean;
+  extra?: OnboardingExtraSlot;
 }
+const emptyDraft = (): Draft => ({ mood: null, completed: false, skipped: false });
 
-// 슬라이드 2: 기분 저하 → 더 우울함 → 미루기/회피 악순환 다이어그램
-function CycleDiagram() {
-  return (
-    <div className="relative w-56 h-40 mx-auto">
-      <svg viewBox="0 0 224 160" className="absolute inset-0 w-full h-full">
-        <circle cx="112" cy="84" r="46" fill="none" stroke="#D6D3CB" strokeWidth="2" strokeDasharray="4 6" />
-      </svg>
-      <span className="absolute left-1/2 -translate-x-1/2 top-0 bg-white border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground/80 shadow-sm">
-        기분 저하
-      </span>
-      <span className="absolute left-2 bottom-2 bg-secondary border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground font-medium shadow-sm">
-        더 우울함
-      </span>
-      <span className="absolute right-0 bottom-2 bg-white border border-border/50 rounded-full px-4 py-1.5 text-sm text-foreground/80 shadow-sm">
-        미루기/회피
-      </span>
-    </div>
-  );
-}
-
-// 슬라이드 3: 작은 행동 → 기분이 따라옴!
-function ArrowDiagram() {
-  return (
-    <div className="flex flex-col items-center gap-0">
-      <span className="bg-white border-2 border-primary rounded-full px-6 py-2.5 text-base font-medium text-foreground shadow-sm">
-        작은 행동
-      </span>
-      <div className="w-1 h-8 bg-primary/60 rounded-full my-1.5" />
-      <span className="bg-primary/15 border border-primary/40 rounded-2xl px-5 py-2 text-sm font-medium text-foreground">
-        기분이 따라옴!
-      </span>
-    </div>
-  );
-}
-
-const INTERESTS = [
-  "게임", "음악", "동물", "식물", "요리·먹는 것", "책·글", "스포츠", "그림·만들기",
-];
-
-// P/M 간이 탭(온보딩 주간 전용 — 슬라이더는 본 사이클부터)
-const PM_TAPS = [
-  { v: 1, label: "별로였어요" },
-  { v: 3, label: "그냥 그랬어요" },
-  { v: 5, label: "좋았어요" },
-];
-
-type Step = "journey" | "mood" | "mission" | "learn" | "survey" | "pm" | "interests" | "ready";
-
-// 온보딩 1주: 지정된 하루 1개 초소형 미션이라 '오늘 뭘 할까'가 아니라
-// '7일 여정 위 어디쯤인가'가 보여야 한다 → 타임라인이 기본 화면.
 export function OnboardingWeek() {
   const { user, updateUser, setView, nextDay, signOut } = useAppStore();
   const week = user.onboardingWeek ?? emptyOnboardingWeek();
-  // Day는 실제 달력에서 나온다 — 가입일(startedAt)이 사람마다 다르므로
-  // 같은 날 앱을 열어도 각자 다른 Day를 본다. week.dayIndex는 호환용으로만 남긴다.
-  const dayIdx = Math.min(Math.max(user.dayCount, 1), 7); // 1~7
-  const mission = getOnboardingMission(dayIdx, user.forbidden);
+  const dayIdx = Math.min(Math.max(user.dayCount, 1), ONBOARDING_DAYS);
+  const script = SCRIPT[dayIdx] ?? SCRIPT[1]!;
+  const fixedMission = getOnboardingMission(dayIdx, user.forbidden);
 
-  const [step, setStep] = useState<Step>("journey");
-  const [mood, setMood] = useState<number | null>(null);
-  const [p, setP] = useState<number | null>(null);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  // Day1 심리교육 / Day2 상황 체크리스트 진행 상태
-  const [learnIndex, setLearnIndex] = useState(0);
-  const [ssIndex, setSsIndex] = useState(0);
-  const [ssResponses, setSsResponses] = useState<SurveyResponses>({});
-  const ssItems = getFirstLaunchItems().filter((i) => i.moduleId === "seclusion_status");
+  // -1 = 타임라인(기본 화면), 0~ = 대본 진행 중
+  const [stepIdx, setStepIdx] = useState(-1);
+  const draft = useRef<Draft>(emptyDraft());
+  const [, bump] = useState(0);
+  const rerender = () => bump((n) => n + 1);
 
-  const entries = user.onboardingWeek?.entries ?? week.entries;
+  const entries = week.entries;
   const todayEntry = entries.find((e) => e.day === dayIdx) ?? null;
-  const completedCount = entries.filter((e) => e.completed).length;
-
-  // Day N ↔ 실제 날짜 대응. 가입일이 다르면 같은 Day라도 달력 날짜가 다르다.
+  const completedCount = entries.filter((e) => e.completed || e.extra?.completed).length;
   const today = todayKey();
   const nextDayKey = dateKeyForDay(user, dayIdx + 1);
   const nextDayLabel = nextDayKey ? formatRelative(nextDayKey, today) : "내일";
 
-  const finishDay = (entry: OnboardingDayEntry) => {
-    updateUser({
-      onboardingWeek: {
-        ...week,
-        dayIndex: dayIdx,
-        entries: [...entries.filter((e) => e.day !== entry.day), entry],
-      },
-    });
-    setStep("journey");
+  const step: Step | null = stepIdx >= 0 ? (script[stepIdx] ?? null) : null;
+  const nextStep: Step | null = stepIdx >= 0 ? (script[stepIdx + 1] ?? null) : null;
+
+  const startToday = () => { draft.current = emptyDraft(); setStepIdx(0); };
+  const backToTimeline = () => setStepIdx(-1);
+
+  const finishDay = () => {
+    const d = draft.current;
+    const entry: OnboardingDayEntry = {
+      day: dayIdx, mood: d.mood ?? 3, completed: d.completed, p: d.p, m: d.m, skipped: d.skipped, extra: d.extra,
+    };
+    updateUser({ onboardingWeek: { ...week, dayIndex: dayIdx, entries: [...entries.filter((e) => e.day !== dayIdx), entry] } });
+    setStepIdx(-1);
   };
 
-  // 시연용 하루 넘기기. 실제 사용자는 날짜가 바뀌어야 다음 Day가 열린다
-  // (store의 syncToday가 자정마다 dayCount를 올린다).
+  const next = () => {
+    if (stepIdx + 1 < script.length) setStepIdx(stepIdx + 1);
+    else finishDay();
+  };
+
+  // 시연용 하루 넘기기. 실제 사용자는 날짜가 바뀌어야 다음 Day가 열린다(store.syncToday).
   const advanceDayForDemo = () => {
-    if (dayIdx >= 7) {
-      setStep("interests");
-      return;
-    }
+    if (dayIdx >= ONBOARDING_DAYS) return;
     updateUser({ onboardingWeek: { ...week, entries, dayIndex: dayIdx + 1 } });
-    setMood(null);
-    setP(null);
-    setStep("journey");
+    setStepIdx(-1);
     nextDay();
   };
 
-  const finishWeek = () => {
-    const finalWeek = { ...(user.onboardingWeek ?? week), done: true, dayIndex: 8 };
+  // D4-6 졸업 → 본 사이클. 나 알아가기 5챕터는 이미 챕터 컴포넌트가 단계를 확정했다.
+  const finishOnboarding = (interests: string[]) => {
+    const finalWeek = { ...week, entries: entriesWithToday(), done: true, dayIndex: ONBOARDING_DAYS + 1 };
     const summary = summarizeOnboardingWeek(finalWeek);
     updateUser({
       onboardingWeek: finalWeek,
-      phase: 'cycle',
-      // dayCount는 이제 달력에서 파생되므로 여기서 임의로 올리지 않는다.
-      // 본 사이클 기준일 = 온보딩을 마친 오늘.
-      cycleStartDay: user.dayCount,
+      phase: "cycle",
+      cycleStartDay: user.dayCount, // 본 사이클 기준일 = 온보딩을 마친 오늘
       moodBaseline: summary.moodBaseline,
       areaPM: summary.initialAreaPM,
-      interests: selectedInterests,
+      interests,
       interestAskedDay: user.dayCount,
-      // 온보딩 skip_pattern: 명시적 skip ≥2회면 회피 슬롯 1주차 조기 활성화
       skipLog: [],
       daily: null,
     });
     setView("daily_checkin");
   };
+  const entriesWithToday = (): OnboardingDayEntry[] => {
+    const d = draft.current;
+    const entry: OnboardingDayEntry = {
+      day: dayIdx, mood: d.mood ?? 3, completed: d.completed, p: d.p, m: d.m, skipped: d.skipped, extra: d.extra,
+    };
+    return [...entries.filter((e) => e.day !== dayIdx), entry];
+  };
 
-  const entryBase = { day: dayIdx, mood: mood ?? 3 };
-
-  // Day2 체크리스트 완료: 온보딩 응답과 합쳐 정식 첫 실행 채점으로 갱신.
-  // 금지조건은 절대 완화하지 않는다 — 기존 게이트와 새 결과의 합집합만 허용.
-  const finishSurveyMission = (finalResponses: SurveyResponses) => {
-    const allItems = getFirstLaunchItems();
+  // ── D1-4 15문항 ────────────────────────────────────────────
+  const ssItems = useMemo(() => getFirstLaunchItems().filter((i) => i.moduleId === "seclusion_status"), []);
+  const [ssPhase, setSsPhase] = useState<"intro" | "items" | "done">("intro");
+  const [ssIndex, setSsIndex] = useState(0);
+  const [ssResponses, setSsResponses] = useState<SurveyResponses>({});
+  // 완료: 온보딩 응답과 합쳐 정식 채점. 금지조건은 절대 완화하지 않는다(합집합만).
+  const finishSurvey = (finalResponses: SurveyResponses) => {
     const merged = { ...(user.surveyResponses ?? {}), ...finalResponses };
-    const result = scoreFirstLaunch(allItems, merged);
-    const legacy = deriveLegacyAnswers(merged, result);
+    const result = scoreFirstLaunch(getFirstLaunchItems(), merged);
     updateUser({
       surveyResponses: merged,
       secluded: result.secluded,
       areaSeeds: result.areaSeeds,
-      onboarding: legacy,
+      onboarding: deriveLegacyAnswers(merged, result),
       stage: result.stage,
       baseBandLow: result.baseBandLow,
       baseBandHigh: result.baseBandHigh,
@@ -238,106 +152,162 @@ export function OnboardingWeek() {
       currentBandHigh: result.baseBandHigh,
       forbidden: Array.from(new Set([...user.forbidden, ...result.forbidden])),
     });
-    setStep("pm");
+    setSsPhase("done");
   };
+
+  // ── 챌린지 카드 + P/M (고정·혼합 공용) ──────────────────────
+  const [pmFor, setPmFor] = useState<"fixed" | "extra" | null>(null);
+  const [pTap, setPTap] = useState<number | null>(null);
+  const [mixedSlot, setMixedSlot] = useState<0 | 1>(0);
+  const recommended = useMemo(
+    () => (dayIdx >= 3 && user.stage
+      ? pickOnboardingRecommendation({
+          dayCount: user.dayCount, stage: user.stage, forbidden: user.forbidden,
+          bandLow: user.currentBandLow, bandHigh: user.currentBandHigh,
+          mood: draft.current.mood ?? 3, areaSeeds: user.areaSeeds, avoidTitles: [fixedMission.title],
+        })
+      : null),
+    // 기분·날짜가 정해진 뒤 한 번만 뽑는다(하루 안 안정)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayIdx, user.stage, stepIdx >= 1],
+  );
+
+  const recordChallenge = (which: "fixed" | "extra", completed: boolean, p?: number, m?: number) => {
+    const d = draft.current;
+    if (which === "fixed") {
+      d.completed = completed; d.skipped = !completed; d.p = p; d.m = m;
+    } else if (recommended) {
+      d.extra = { title: recommended.title, area: recommended.area, level: recommended.level, completed, p, m };
+    }
+    rerender();
+  };
+
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+
+  // ─────────────────────────── 화면들
+  const challengeCard = (which: "fixed" | "extra", onAfter: () => void) => {
+    const m = which === "fixed" ? fixedMission : recommended;
+    if (!m) { onAfter(); return null; }
+    const inPm = pmFor === which;
+    return (
+      <motion.div key={`ch-${which}-${inPm}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col justify-center space-y-6">
+        {!inPm ? (
+          <>
+            {step === "mixed" && mixedSlot === 0 && which === "fixed" && (
+              <p className="text-center text-sm text-muted-foreground">{CHALLENGE.mixedIntro}</p>
+            )}
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-4">
+              <div className="flex justify-between items-center text-sm text-muted-foreground">
+                <span className={`px-3 py-1 rounded-full ${which === "extra" ? "bg-primary/15 text-foreground" : "bg-secondary"}`}>
+                  {which === "extra" ? CHALLENGE.recommendedTag : CHALLENGE.tinyTag}
+                </span>
+                <span>약 {m.minutes}분</span>
+              </div>
+              <p className="text-xl font-medium text-foreground leading-relaxed">{m.title}</p>
+            </motion.div>
+            <div className="space-y-3">
+              <Button size="lg" className="w-full rounded-2xl h-14 text-lg" onClick={() => { setPTap(null); setPmFor(which); }}>
+                {CHALLENGE.did}
+              </Button>
+              <Button size="lg" variant="ghost" className="w-full rounded-2xl h-12 text-muted-foreground" onClick={() => { recordChallenge(which, false); onAfter(); }}>
+                {CHALLENGE.skip}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-medium text-foreground">{PM.title}</h2>
+              <p className="text-sm text-muted-foreground">{PM.sub}</p>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3">
+              <p className="text-sm text-foreground">{PM.pleasure}</p>
+              <div className="flex gap-2">
+                {PM.taps.map((t) => (
+                  <button key={t.v} onClick={() => setPTap(t.v)} className={`flex-1 py-3 rounded-xl text-sm border transition-colors ${pTap === t.v ? "bg-primary text-white border-primary" : "bg-white border-border/50 hover:bg-secondary/50"}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {pTap !== null && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3">
+                <p className="text-sm text-foreground">{PM.mastery}</p>
+                <div className="flex gap-2">
+                  {PM.taps.map((t) => (
+                    <button key={t.v} onClick={() => { recordChallenge(which, true, pTap, t.v); setPmFor(null); onAfter(); }} className="flex-1 py-3 rounded-xl text-sm border bg-white border-border/50 hover:bg-secondary/50 transition-colors">
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </>
+        )}
+      </motion.div>
+    );
+  };
+
+  const deck = (key: string, props: Parameters<typeof CardDeck>[0]) => (
+    <motion.div key={key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
+      <CardDeck {...props} />
+    </motion.div>
+  );
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
       <div className="flex-1 flex flex-col max-w-sm mx-auto w-full p-6">
         <AnimatePresence mode="wait">
-          {step === "journey" ? (
-            <motion.div
-              key="journey"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="flex-1 flex flex-col"
-            >
+          {step === null ? (
+            // ── 타임라인(기본 화면) ─────────────────────────────
+            <motion.div key="timeline" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="flex-1 flex flex-col">
               <div className="pt-4 pb-6 flex items-start justify-between gap-3">
                 <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground">{formatKorean(today)}</p>
-                  <h1 className="text-2xl font-semibold text-foreground">나의 시작 데이터 쌓기</h1>
-                  <p className="text-sm text-muted-foreground">7일 동안 아주 작은 조각을 모아봐요</p>
+                  <h1 className="text-2xl font-semibold text-foreground">{TIMELINE.title}</h1>
+                  <p className="text-sm text-muted-foreground">{TIMELINE.sub}</p>
                 </div>
-                <button
-                  onClick={signOut}
-                  aria-label="로그아웃"
-                  className="mt-1 p-2 -mr-2 shrink-0 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 transition-colors"
-                >
+                <button onClick={signOut} aria-label="로그아웃" className="mt-1 p-2 -mr-2 shrink-0 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 transition-colors">
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* 7일 타임라인 */}
               <div className="relative">
-                {/* 세로 연결선 */}
                 <div className="absolute left-[15px] top-4 bottom-4 w-px bg-border" />
                 <div className="space-y-3">
-                  {Array.from({ length: 7 }, (_, i) => i + 1).map((d) => {
-                    const m = getOnboardingMission(d, user.forbidden);
+                  {Array.from({ length: ONBOARDING_DAYS }, (_, i) => i + 1).map((d) => {
                     const entry = entries.find((e) => e.day === d) ?? null;
                     const isPast = d < dayIdx || (d === dayIdx && todayEntry !== null);
                     const isToday = d === dayIdx;
                     const isFuture = d > dayIdx;
+                    const done = !!entry && (entry.completed || !!entry.extra?.completed);
                     return (
                       <div key={d} className="relative flex items-start gap-4">
-                        {/* 타임라인 점 */}
                         <div className="relative z-10 mt-4 shrink-0">
                           {isPast && entry ? (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${entry.completed ? "bg-primary/15" : "bg-secondary"}`}>
-                              <Check className={`w-4 h-4 ${entry.completed ? "text-primary" : "text-muted-foreground/50"}`} strokeWidth={3} />
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${done ? "bg-primary/15" : "bg-secondary"}`}>
+                              <Check className={`w-4 h-4 ${done ? "text-primary" : "text-muted-foreground/50"}`} strokeWidth={3} />
                             </div>
                           ) : isToday ? (
                             <div className="w-8 h-8 rounded-full border-2 border-primary bg-background flex items-center justify-center">
-                              <motion.div
-                                animate={{ scale: [1, 1.25, 1] }}
-                                transition={{ repeat: Infinity, duration: 1.8 }}
-                                className="w-2.5 h-2.5 rounded-full bg-primary"
-                              />
+                              <motion.div animate={{ scale: [1, 1.25, 1] }} transition={{ repeat: Infinity, duration: 1.8 }} className="w-2.5 h-2.5 rounded-full bg-primary" />
                             </div>
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-secondary/70 border border-border/60" />
                           )}
                         </div>
-
-                        {/* 카드 */}
-                        <motion.div
-                          initial={{ opacity: 0, x: 8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: d * 0.05 }}
-                          className={`flex-1 rounded-2xl border p-4 ${
-                            isToday && !todayEntry
-                              ? "bg-white border-primary/60 shadow-[0_2px_12px_rgba(245,158,11,0.15)]"
-                              : isFuture
-                                ? "bg-secondary/40 border-border/40"
-                                : "bg-white border-border/50"
-                          }`}
-                        >
+                        <motion.div initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: d * 0.05 }} className={`flex-1 rounded-2xl border p-4 ${isToday && !todayEntry ? "bg-white border-primary/60 shadow-[0_2px_12px_rgba(245,158,11,0.15)]" : isFuture ? "bg-secondary/40 border-border/40" : "bg-white border-border/50"}`}>
                           <div className="flex items-center justify-between">
                             <p className={`text-[11px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                              Day {d}
-                              {(() => {
-                                const k = dateKeyForDay(user, d);
-                                return k ? ` · ${formatKorean(k)}` : "";
-                              })()}
+                              Day {d}{(() => { const k = dateKeyForDay(user, d); return k ? ` · ${formatKorean(k)}` : ""; })()}
                             </p>
-                            {isPast && entry && (
-                              <span className="text-[11px] text-muted-foreground">
-                                {entry.completed ? "완료" : "쉬어감"}
-                              </span>
-                            )}
+                            {isPast && entry && <span className="text-[11px] text-muted-foreground">{done ? "완료" : "쉬어감"}</span>}
                           </div>
                           <p className={`mt-1 text-[15px] leading-snug ${isFuture ? "text-muted-foreground/70" : "text-foreground font-medium"}`}>
-                            {m.title}
+                            {TIMELINE.dayLabels[d]}
                           </p>
                           {isToday && !todayEntry && (
-                            <Button
-                              size="sm"
-                              className="w-full mt-3 rounded-xl h-10"
-                              onClick={() => setStep("mood")}
-                            >
-                              오늘의 조각 맞추기
-                            </Button>
+                            <Button size="sm" className="w-full mt-3 rounded-xl h-10" onClick={startToday}>{TIMELINE.todayCta}</Button>
                           )}
                         </motion.div>
                       </div>
@@ -346,328 +316,146 @@ export function OnboardingWeek() {
                 </div>
               </div>
 
-              {/* 응원 말풍선 + 캐릭터 */}
               <div className="mt-6 flex items-end justify-end gap-2">
                 <div className="bg-white border border-border/50 rounded-2xl rounded-br-sm px-4 py-3 shadow-sm max-w-[220px]">
                   <p className="text-sm text-foreground leading-snug">
                     {todayEntry
-                      ? todayEntry.completed
-                        ? "오늘 조각도 맞췄어요! 내일 또 만나요."
-                        : "쉬어가는 날도 여정의 일부예요."
-                      : completedCount > 0
-                        ? `벌써 ${completedCount}개의 조각을 맞췄어요! 오늘도 응원할게요.`
-                        : "첫 조각부터 함께 시작해봐요!"}
+                      ? (todayEntry.completed || todayEntry.extra?.completed) ? TIMELINE.bubbleDone : TIMELINE.bubbleRest
+                      : completedCount > 0 ? TIMELINE.bubbleProgress.replace("{n}", String(completedCount)) : TIMELINE.bubbleFirst}
                   </p>
                 </div>
-                <Character size="sm" />
+                <Baebdal state="idle" size="sm" />
               </div>
 
-              {/* 오늘 몫이 끝났으면 — 다음 조각은 실제로 날짜가 바뀌어야 열린다 */}
-              {todayEntry && (
+              {todayEntry && dayIdx < ONBOARDING_DAYS && (
                 <div className="mt-4 space-y-2">
-                  {dayIdx >= 7 ? (
-                    <Button
-                      size="lg"
-                      className="w-full rounded-2xl h-13"
-                      onClick={() => setStep("interests")}
-                    >
-                      일주일 마무리하기
-                    </Button>
-                  ) : (
-                    <>
-                      <div className="rounded-2xl border border-border/50 bg-white px-5 py-4 text-center">
-                        <p className="text-sm text-foreground">오늘 몫은 여기까지예요.</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          다음 조각은 {nextDayLabel}에 열려요.
-                        </p>
-                      </div>
-                      <button
-                        onClick={advanceDayForDemo}
-                        className="w-full py-2 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-                      >
-                        다음 날로 넘기기 (시연용)
-                      </button>
-                    </>
-                  )}
+                  <div className="rounded-2xl border border-border/50 bg-white px-5 py-4 text-center">
+                    <p className="text-sm text-foreground">{TIMELINE.doneToday}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{TIMELINE.nextOpens.replace("{when}", nextDayLabel)}</p>
+                  </div>
+                  <button onClick={advanceDayForDemo} className="w-full py-2 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors">
+                    {TIMELINE.demoAdvance}
+                  </button>
                 </div>
               )}
             </motion.div>
+
           ) : step === "mood" ? (
-            <motion.div
-              key="mood"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-8"
-            >
-              <div className="flex justify-center"><Character size="sm" /></div>
+            <motion.div key="mood" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col justify-center space-y-8">
+              <div className="flex justify-center"><Baebdal state="idle" size="sm" /></div>
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 text-center">
-                <p className="text-lg text-foreground leading-relaxed">
-                  오늘 기분은 어때요?
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">탭 한 번이면 충분해요.</p>
+                <p className="text-lg text-foreground leading-relaxed">{MOOD.ask}</p>
+                {dayIdx === 1 && <p className="text-xs text-muted-foreground mt-1">{MOOD.hint}</p>}
               </div>
               <div className="flex justify-between gap-1">
                 {MOOD_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    onClick={() => { setMood(o.value); setStep("mission"); }}
-                    className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:bg-secondary transition-colors"
-                  >
+                  <button key={o.value} onClick={() => { draft.current.mood = o.value; next(); }} className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:bg-secondary transition-colors">
                     <span className="text-2xl">{o.emoji}</span>
                     <span className="text-[10px] text-muted-foreground">{o.label}</span>
                   </button>
                 ))}
               </div>
             </motion.div>
-          ) : step === "mission" ? (
-            <motion.div
-              key="mission"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-8"
-            >
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-medium text-foreground">Day {dayIdx} · 오늘의 조각</h2>
-                <p className="text-sm text-muted-foreground">이미 준비해뒀어요. 하거나, 건너뛰거나 — 그거면 돼요.</p>
-              </div>
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white p-8 rounded-3xl shadow-sm border border-border/50 space-y-4"
-              >
-                <div className="flex justify-between items-center text-sm text-muted-foreground">
-                  <span className="px-3 py-1 bg-secondary rounded-full">아주 작은 조각</span>
-                  <span>약 {mission.minutes}분</span>
-                </div>
-                <p className="text-xl font-medium text-foreground leading-relaxed">{mission.title}</p>
-              </motion.div>
-              <div className="space-y-3">
-                <Button
-                  size="lg"
-                  className="w-full rounded-2xl h-14 text-lg"
-                  onClick={() => {
-                    if (mission.kind === "learn") {
-                      setLearnIndex(0);
-                      setStep("learn");
-                    } else if (mission.kind === "survey") {
-                      setSsIndex(0);
-                      setSsResponses({});
-                      setStep("survey");
-                    } else {
-                      setStep("pm");
-                    }
-                  }}
-                >
-                  {mission.kind ? "시작해볼게요" : "했어요"}
-                </Button>
-                <Button
-                  size="lg"
-                  variant="ghost"
-                  className="w-full rounded-2xl h-12 text-muted-foreground"
-                  onClick={() => finishDay({ ...entryBase, completed: false, skipped: true })}
-                >
-                  오늘은 건너뛸래요
-                </Button>
-              </div>
-            </motion.div>
+
           ) : step === "learn" ? (
-            <motion.div
-              key="learn"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col"
-            >
-              {/* 상단 진행바 + 건너뛰기 */}
-              <div className="flex items-center gap-4 pt-4 pb-2">
-                <div className="flex-1 h-2 bg-secondary/70 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-primary rounded-full"
-                    animate={{ width: `${((learnIndex + 1) / LEARN_CARDS.length) * 100}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </div>
-                <button
-                  onClick={() => setStep("pm")}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                >
-                  건너뛰기
-                </button>
-              </div>
+            deck("learn", {
+              cards: D1_2_BA, header: D1_2_BA_TITLE, onDone: next, lastCta: "다음",
+              visuals: [
+                <LearnFaceSvg key="f1" face="frown" />,
+                <div key="f2" className="space-y-4"><LearnFaceSvg face="wink" /><CycleDiagram /></div>,
+                <div key="f3" className="space-y-4"><LearnFaceSvg face="smile" /><ArrowDiagram /></div>,
+                <LearnFaceSvg key="f4" face="joy" />,
+                <LoopDiagram key="f5" />,
+              ],
+            })
+          ) : step === "why15" ? (
+            deck("why15", { cards: D1_3_WHY15, onDone: next, lastCta: "알겠어", mascot: "idle" })
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`learn-slide-${learnIndex}`}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="flex-1 flex flex-col items-center justify-center text-center gap-8"
-                >
-                  <LearnFaceSvg face={LEARN_CARDS[learnIndex]!.face} />
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-bold text-foreground leading-snug whitespace-pre-line">
-                      {LEARN_CARDS[learnIndex]!.title}
-                    </h2>
-                    <p className="text-[15px] text-muted-foreground leading-relaxed whitespace-pre-line">
-                      {LEARN_CARDS[learnIndex]!.body}
-                    </p>
+          ) : step === "survey15" ? (
+            <motion.div key={`ss-${ssPhase}-${ssIndex}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col justify-center space-y-6">
+              {ssPhase === "intro" ? (
+                <>
+                  <div className="flex justify-center"><Baebdal state="idle" size="lg" /></div>
+                  <p className="text-center text-lg text-foreground leading-relaxed max-w-xs mx-auto">{D1_4_SURVEY.intro}</p>
+                  <div className="space-y-3">
+                    <Button size="lg" className="w-full rounded-2xl h-14" onClick={() => { setSsIndex(0); setSsResponses({}); setSsPhase("items"); }}>{CHALLENGE.start}</Button>
+                    <Button size="lg" variant="ghost" className="w-full rounded-2xl h-12 text-muted-foreground" onClick={next}>{D1_4_SURVEY.skip}</Button>
                   </div>
-                  {LEARN_CARDS[learnIndex]!.diagram === "cycle" && <CycleDiagram />}
-                  {LEARN_CARDS[learnIndex]!.diagram === "arrow" && <ArrowDiagram />}
-                </motion.div>
-              </AnimatePresence>
-
-              <div className="pb-2">
-                <Button
-                  size="lg"
-                  className="w-full rounded-2xl h-14 text-base"
-                  onClick={() => {
-                    if (learnIndex < LEARN_CARDS.length - 1) setLearnIndex(learnIndex + 1);
-                    else setStep("pm");
-                  }}
-                >
-                  {LEARN_CARDS[learnIndex]!.cta ?? "다음"}
-                </Button>
-              </div>
-            </motion.div>
-          ) : step === "survey" ? (
-            <motion.div
-              key={`survey-${ssIndex}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-6"
-            >
-              <div className="h-1.5 bg-secondary/60 rounded-full overflow-hidden" aria-hidden="true">
-                <div
-                  className="h-full bg-primary/50 rounded-full transition-all"
-                  style={{ width: `${Math.round(((ssIndex + 1) / ssItems.length) * 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-center"><Character size="sm" showItems={false} /></div>
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 text-foreground text-lg leading-relaxed">
-                {ssItems[ssIndex]?.q}
-              </div>
-              <div className="space-y-3">
-                {(ssItems[ssIndex]?.options ?? []).map((opt) => (
-                  <Button
-                    key={`${ssItems[ssIndex]!.id}-${opt.v}`}
-                    variant="outline"
-                    className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal"
-                    onClick={() => {
-                      const next = { ...ssResponses, [ssItems[ssIndex]!.id]: opt.v };
-                      setSsResponses(next);
-                      if (ssIndex < ssItems.length - 1) setSsIndex(ssIndex + 1);
-                      else finishSurveyMission(next);
-                    }}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
-            </motion.div>
-          ) : step === "pm" ? (
-            <motion.div
-              key="pm"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-6"
-            >
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-medium text-foreground">해냈네요!</h2>
-                <p className="text-sm text-muted-foreground">방금 한 건 어땠는지, 가볍게만 알려주세요.</p>
-              </div>
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3">
-                <p className="text-sm text-foreground">즐거움은 어땠어요?</p>
-                <div className="flex gap-2">
-                  {PM_TAPS.map((t) => (
-                    <button
-                      key={t.v}
-                      onClick={() => setP(t.v)}
-                      className={`flex-1 py-3 rounded-xl text-sm border transition-colors ${p === t.v ? 'bg-primary text-white border-primary' : 'bg-white border-border/50 hover:bg-secondary/50'}`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {p !== null && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 space-y-3"
-                >
-                  <p className="text-sm text-foreground">뿌듯함은요?</p>
-                  <div className="flex gap-2">
-                    {PM_TAPS.map((t) => (
-                      <button
-                        key={t.v}
-                        onClick={() => finishDay({ ...entryBase, completed: true, p: p ?? 3, m: t.v })}
-                        className="flex-1 py-3 rounded-xl text-sm border bg-white border-border/50 hover:bg-secondary/50 transition-colors"
-                      >
-                        {t.label}
-                      </button>
+                </>
+              ) : ssPhase === "items" ? (
+                <>
+                  <div className="h-1.5 bg-secondary/60 rounded-full overflow-hidden" aria-hidden="true">
+                    <div className="h-full bg-primary/50 rounded-full transition-all" style={{ width: `${Math.round(((ssIndex + 1) / ssItems.length) * 100)}%` }} />
+                  </div>
+                  <div className="flex justify-center"><Baebdal state="idle" size="sm" /></div>
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-border/50 text-foreground text-lg leading-relaxed">{ssItems[ssIndex]?.q}</div>
+                  <div className="space-y-3">
+                    {(ssItems[ssIndex]?.options ?? []).map((o) => (
+                      <Button key={`${ssItems[ssIndex]!.id}-${o.v}`} variant="outline" className="w-full justify-start text-left h-auto py-4 px-6 rounded-2xl bg-white hover:bg-secondary/50 border-border/50 hover:border-primary/30 whitespace-normal"
+                        onClick={() => {
+                          const r = { ...ssResponses, [ssItems[ssIndex]!.id]: o.v };
+                          setSsResponses(r);
+                          if (ssIndex < ssItems.length - 1) setSsIndex(ssIndex + 1); else finishSurvey(r);
+                        }}>
+                        {o.label}
+                      </Button>
                     ))}
                   </div>
-                </motion.div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-center"><Baebdal state="happy" size="lg" /></div>
+                  <p className="text-center text-lg text-foreground leading-relaxed max-w-xs mx-auto">{D1_4_SURVEY.done}</p>
+                  <Button size="lg" className="w-full rounded-2xl h-14" onClick={next}>다음</Button>
+                </>
               )}
             </motion.div>
+
+          ) : step === "fixed" ? (
+            challengeCard("fixed", next)
+
+          ) : step === "journey" ? (
+            deck("journey", { cards: D2_2_JOURNEY, onDone: next, lastCta: "좋아", mascot: "idle", visuals: [null, <SpacesVisual key="sp" lit={1} />] })
+          ) : step === "levelup" ? (
+            deck("levelup", { cards: D2_3_LEVELUP, onDone: next, lastCta: "알겠어", mascot: "happy", visuals: [null, <SpacesVisual key="sp2" lit={2} />] })
+
+          ) : step === "chapter" ? (
+            <motion.div key={`chapter-${stepIdx}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
+              <KnowYourselfChapter onDone={next} onExit={backToTimeline} showDone={nextStep !== "chapter"} />
+            </motion.div>
+
+          ) : step === "mixed" ? (
+            mixedSlot === 0
+              ? challengeCard("fixed", () => setMixedSlot(1))
+              : challengeCard("extra", () => { setMixedSlot(0); next(); })
+
+          ) : step === "deco" ? (
+            deck("deco", { cards: D3_4_DECO, onDone: next, lastCta: "알겠어", mascot: "idle", visuals: [<SpacesVisual key="sp3" lit={1} />] })
+          ) : step === "interestWhy" ? (
+            deck("interestWhy", { cards: D4_4_INTEREST_WHY, onDone: next, lastCta: "좋아", mascot: "idle" })
+
           ) : step === "interests" ? (
-            <motion.div
-              key="interests"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col justify-center space-y-6"
-            >
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-medium text-foreground">일주일을 함께 했어요</h2>
-                <p className="text-sm text-muted-foreground">
-                  마지막으로 하나만요. 요즘 조금이라도 눈길이 가는 게 있다면? (여러 개 골라도 좋아요)
-                </p>
-              </div>
+            <motion.div key="interests" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col justify-center space-y-6">
+              <p className="text-center text-lg text-foreground leading-relaxed max-w-xs mx-auto">{D4_5_INTERESTS.ask}</p>
               <div className="grid grid-cols-2 gap-2.5">
-                {INTERESTS.map((i) => (
-                  <button
-                    key={i}
-                    onClick={() =>
-                      setSelectedInterests((prev) =>
-                        prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i],
-                      )
-                    }
-                    className={`py-3 px-4 rounded-2xl text-sm border transition-colors ${selectedInterests.includes(i) ? 'bg-primary text-white border-primary' : 'bg-white border-border/50 hover:bg-secondary/50'}`}
-                  >
+                {D4_5_INTERESTS.options.map((i) => (
+                  <button key={i} onClick={() => setSelectedInterests((prev) => prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i])}
+                    className={`py-3 px-4 rounded-2xl text-sm border transition-colors ${selectedInterests.includes(i) ? "bg-primary text-white border-primary" : "bg-white border-border/50 hover:bg-secondary/50"}`}>
                     {i}
                   </button>
                 ))}
               </div>
-              <Button size="lg" className="w-full rounded-2xl h-14" onClick={() => setStep("ready")}>
-                {selectedInterests.length > 0 ? "좋아요" : "잘 모르겠어요, 넘어갈게요"}
+              <Button size="lg" className="w-full rounded-2xl h-14" onClick={next}>
+                {selectedInterests.length > 0 ? D4_5_INTERESTS.ok : D4_5_INTERESTS.skip}
               </Button>
             </motion.div>
+
           ) : (
-            <motion.div
-              key="ready"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col justify-center space-y-8 text-center"
-            >
-              <div className="flex justify-center"><Character size="lg" /></div>
-              <div className="space-y-3">
-                <h2 className="text-2xl font-medium text-foreground">이제 진짜 시작이에요</h2>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  지난 일주일의 기록을 바탕으로,<br />
-                  내일부터는 {user.nickname || '조각이 친구'}님에게 맞는<br />
-                  조각들을 골라서 보여드릴게요.
-                </p>
-              </div>
-              <Button size="lg" className="w-full rounded-2xl h-14" onClick={finishWeek}>
-                좋아요, 시작할게요
-              </Button>
-            </motion.div>
+            // D4-6 졸업 2장 → 본 사이클
+            deck("graduate", {
+              cards: [{ body: D4_6_GRADUATE.first }, { body: D4_6_GRADUATE.second.replace("{name}", user.nickname || "너") }],
+              onDone: () => finishOnboarding(selectedInterests), lastCta: D4_6_GRADUATE.cta, mascot: "celebrate",
+            })
           )}
         </AnimatePresence>
       </div>

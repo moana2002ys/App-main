@@ -6,7 +6,9 @@ import {
   capBandForArea,
   determineTodayArea,
   getStageAllowedAreas,
+  getStageTargetArea,
   isAreaEligible,
+  topSeedArea,
 } from "./classifier";
 import {
   selectAreaMissions,
@@ -816,32 +818,24 @@ export function microFeedback(records: DayRecord[], today: number): string | nul
 // ── 온보딩 1주 고정 미션 ────────────────────────────────────
 // 실패가 거의 불가능한 초소형 미션. 계획 입력 없음(하거나/건너뛰거나만).
 export interface OnboardingMission {
-  day: number; // 1~7
+  day: number; // 1~ONBOARDING_DAYS
   title: string;
   minutes: number;
   area: Area;
-  // Day1 심리교육 / Day2 상황 체크리스트(설문 미션) / 나머지 초소형 미션
-  kind?: "learn" | "survey";
   // 게이트: 외출 금지 사용자용 대체 문구
   outdoorAlt?: string;
 }
 
+// 온보딩 = Day0(가입 당일) + Day1~4, 5일. 종료일 Day4 고정 (v5 기획안, 9.4 결정).
+export const ONBOARDING_DAYS = 4;
+
+// 날마다 고정 챌린지 1개. 심리교육·15문항은 더 이상 '미션'이 아니라 Day1의 화면 단계다.
+// 전부 실내·혼자·1~4분 — 온보딩 중엔 정식 게이트가 없을 수 있으므로 외출을 요구하지 않는다.
 export const ONBOARDING_WEEK: OnboardingMission[] = [
-  // Day1 제목에 고립·은둔 같은 상태 라벨을 쓰지 않는다(낙인 언어 비노출 원칙, 8.12 피드백).
-  // 첫 실행의 '앱 원리 3장'(앱이 어떻게 작동하나)과 겹치지 않게, 여긴 BA 기전(왜 효과가 있나)임이 드러나는 제목.
-  { day: 1, title: "작은 행동이 기분을 바꾸는 이유", minutes: 3, area: AREAS.selfcare, kind: "learn" },
-  { day: 2, title: "내 상황 돌아보기 체크리스트", minutes: 5, area: AREAS.selfcare, kind: "survey" },
-  { day: 3, title: "물 한 잔 마시기", minutes: 1, area: AREAS.rhythm },
-  { day: 4, title: "커튼 걷고 잠깐 환기하기", minutes: 2, area: AREAS.rhythm },
-  { day: 5, title: "1분 기지개·스트레칭", minutes: 1, area: AREAS.selfcare },
-  {
-    day: 6,
-    title: "현관문 밖에 잠깐 나갔다 오기",
-    minutes: 2,
-    area: AREAS.rhythm,
-    outdoorAlt: "창밖 풍경 1분 바라보기",
-  },
-  { day: 7, title: "좋아하는 노래 1곡 듣기", minutes: 4, area: AREAS.selfcare },
+  { day: 1, title: "물 한 잔 마시기", minutes: 1, area: AREAS.rhythm },
+  { day: 2, title: "커튼 걷고 잠깐 환기하기", minutes: 2, area: AREAS.rhythm },
+  { day: 3, title: "1분 기지개·스트레칭", minutes: 1, area: AREAS.selfcare },
+  { day: 4, title: "좋아하는 노래 1곡 듣기", minutes: 4, area: AREAS.selfcare },
 ];
 
 // ── 맛보기 챌린지 ──────────────────────────────────────────
@@ -860,28 +854,28 @@ export const TASTER_MISSIONS: TasterMission[] = [
   {
     id: "taster_water",
     title: "물 한 잔 마시기",
-    hint: "미지근한 물이면 더 좋아요. 반 잔만 마셔도 한 거예요.",
+    hint: "미지근한 물이면 더 좋아. 반 잔만 마셔도 한 거야.",
     minutes: 1,
     area: AREAS.rhythm,
   },
   {
     id: "taster_stretch",
     title: "기지개 한 번 크게 켜기",
-    hint: "누운 채로도 괜찮아요. 팔만 뻗어도 돼요.",
+    hint: "누운 채로도 괜찮아. 팔만 뻗어도 돼.",
     minutes: 1,
     area: AREAS.selfcare,
   },
   {
     id: "taster_window",
     title: "창문 열고 바깥 공기 마시기",
-    hint: "나가지 않아도 돼요. 창문만 살짝 열면 충분해요.",
+    hint: "나가지 않아도 돼. 창문만 살짝 열면 충분해.",
     minutes: 2,
     area: AREAS.rhythm,
   },
   {
     id: "taster_song",
     title: "좋아하는 노래 한 곡 듣기",
-    hint: "아무 노래나 괜찮아요. 끝까지 안 들어도 돼요.",
+    hint: "아무 노래나 괜찮아. 끝까지 안 들어도 돼.",
     minutes: 4,
     area: AREAS.selfcare,
   },
@@ -892,24 +886,35 @@ export function getTasterMission(id: string): TasterMission | null {
 }
 
 export function getOnboardingMission(day: number, forbidden: string[]): OnboardingMission {
-  const m = ONBOARDING_WEEK[Math.max(0, Math.min(6, day - 1))]!;
+  const m = ONBOARDING_WEEK[Math.max(0, Math.min(ONBOARDING_DAYS - 1, day - 1))]!;
   if (m.outdoorAlt && forbidden.includes("외출")) {
     return { ...m, title: m.outdoorAlt, outdoorAlt: undefined };
   }
   return m;
 }
 
-export interface OnboardingDayEntry {
-  day: number; // 1~7
-  mood: number; // 1~5
+// Day3~4 혼합 챌린지의 두 번째(추천) 슬롯 기록
+export interface OnboardingExtraSlot {
+  title: string;
+  area: Area;
+  level: number;
   completed: boolean;
+  p?: number;
+  m?: number;
+}
+
+export interface OnboardingDayEntry {
+  day: number; // 1~ONBOARDING_DAYS
+  mood: number; // 1~5
+  completed: boolean; // 고정 챌린지 완료 여부
   p?: number; // 1~5 (탭)
   m?: number; // 1~5 (탭)
   skipped?: boolean;
+  extra?: OnboardingExtraSlot; // Day3~4 추천 챌린지 (v5 D3-3 · D4-3)
 }
 
 export interface OnboardingWeekState {
-  dayIndex: number; // 다음 진행할 온보딩 날(1~7). 8 = 완료
+  dayIndex: number; // 다음 진행할 온보딩 날(1~ONBOARDING_DAYS). ONBOARDING_DAYS+1 = 완료
   entries: OnboardingDayEntry[];
   done: boolean;
 }
@@ -934,19 +939,57 @@ export function summarizeOnboardingWeek(state: OnboardingWeekState): {
   // 명시적 skip ≥2회 → 회피 슬롯 조기 활성화
   const skips = state.entries.filter((e) => e.skipped).length;
   const initialAreaPM: AreaPMMap = {};
-  for (const e of state.entries) {
-    if (!e.completed) continue;
-    const mission = ONBOARDING_WEEK[e.day - 1];
-    if (!mission) continue;
-    const cur = initialAreaPM[mission.area] ?? { pSum: 0, pN: 0, mSum: 0, mN: 0 };
-    initialAreaPM[mission.area] = {
-      pSum: cur.pSum + (e.p ?? 3),
+  const add = (area: Area, p?: number, m?: number) => {
+    const cur = initialAreaPM[area] ?? { pSum: 0, pN: 0, mSum: 0, mN: 0 };
+    initialAreaPM[area] = {
+      pSum: cur.pSum + (p ?? 3),
       pN: cur.pN + 1,
-      mSum: cur.mSum + (e.m ?? 3),
+      mSum: cur.mSum + (m ?? 3),
       mN: cur.mN + 1,
     };
+  };
+  for (const e of state.entries) {
+    const mission = ONBOARDING_WEEK[e.day - 1];
+    if (e.completed && mission) add(mission.area, e.p, e.m);
+    // Day3~4 추천 챌린지도 P/M 표본에 넣는다 — 영역이 고정 챌린지와 달라 시드가 넓어진다.
+    if (e.extra?.completed) add(e.extra.area, e.extra.p, e.extra.m);
   }
   return { moodBaseline, earlyAvoidance: skips >= 2, initialAreaPM };
+}
+
+// ── 온보딩 Day3~4 추천 챌린지 1개 (v5 D3-3 · D4-3) ──────────
+// 규칙(기획안): 15문항에서 힘들다고 답한 영역은 가장 쉬운 단계, 괜찮다고 답한 영역은 한 단계 위.
+//  - 시드 최상위(= 가장 버거운) 영역이 있으면 그 영역의 L1.
+//  - 시드가 비었거나 동률이면 회복단계 타깃 영역에서 밴드 하단 +1 (상단을 넘지 않게).
+// 본 사이클의 planTodaySlots와 달리 슬롯 4종·회피·즐거움 로직은 태우지 않는다 — 온보딩은 하루 2개까지.
+export function pickOnboardingRecommendation(params: {
+  dayCount: number;
+  stage: Stage;
+  forbidden: string[];
+  bandLow: number;
+  bandHigh: number;
+  mood: number;
+  areaSeeds?: Record<string, number> | null;
+  avoidTitles?: string[];
+}): GeneratedMission | null {
+  const { stage, forbidden } = params;
+  const burdened = topSeedArea(params.areaSeeds, stage, forbidden);
+  const area = burdened ?? getStageTargetArea(stage, forbidden);
+  const level = burdened
+    ? 1
+    : Math.max(1, Math.min(params.bandHigh, params.bandLow + 1));
+  const capped = capBandForArea(stage, area, level, level);
+  const picked = selectAreaMissions({
+    area,
+    bandLow: capped.low,
+    bandHigh: capped.high,
+    forbidden,
+    condition: moodToCondition(params.mood as Mood),
+    rotation: params.dayCount,
+    count: 1,
+    avoidTitles: new Set(params.avoidTitles ?? []),
+  });
+  return picked[0] ?? null;
 }
 
 // ── 4주 게이트 재평가(1문항) ────────────────────────────────
